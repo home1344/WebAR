@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>WebAR Floor Placement</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+  <link rel="icon" type="image/svg+xml" href="/public/assets/favicon.svg">
+  <!-- A-Frame must be loaded in head before scene -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script>
+    // Suppress Three.js useLegacyLights deprecation warning
+    // This is a known issue with A-Frame 1.5.0 and Three.js r155+
+    (function() {
+      const originalWarn = console.warn;
+      console.warn = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && 
+            args[0].includes('useLegacyLights')) {
+          return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, args);
+      };
+    })();
+  </script>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen" class="loading-screen visible">
+    <div class="loading-content">
+      <img id="logo" src="/public/assets/logo.svg" alt="Logo" class="logo">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Initializing AR Experience...</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-text" id="progress-text">0%</p>
+      <button id="start-ar-btn" class="try-anyway-btn" type="button" style="display:none">Start AR</button>
+    </div>
+  </div>
+
+  <!-- WebXR Not Supported Screen -->
+  <div id="unsupported-screen" class="unsupported-screen">
+    <div class="unsupported-content">
+      <h2>WebXR Not Supported</h2>
+      <p>Your browser does not support WebXR. Please try one of the following:</p>
+      <div class="supported-browsers">
+        <h3>Android:</h3>
+        <ul>
+          <li>Chrome 79+</li>
+          <li>Samsung Internet 12.0+</li>
+          <li>Edge 79+</li>
+        </ul>
+        <h3>iOS:</h3>
+        <ul>
+          <li>WebXR Viewer</li>
+          <li>Reality Composer</li>
+        </ul>
+      </div>
+      <button class="try-anyway-btn" onclick="window.arApp.tryAnyway()">Try Anyway</button>
+    </div>
+  </div>
+
+  <!-- Main AR Scene -->
+  <a-scene
+    id="ar-scene"
+    class="hidden"
+    webxr="requiredFeatures: hit-test; 
+           optionalFeatures: dom-overlay;
+           overlayElement: #ui-overlay"
+    vr-mode-ui="enabled: false"
+    custom-ar-hit-test="target: #marker; type: horizontal"
+    renderer="antialias: true; colorManagement: true"
+    loading-screen="enabled: false">
+    
+    <!-- Assets -->
+    <a-assets timeout="30000">
+      <!-- Dynamic models will be loaded here -->
+    </a-assets>
+
+    <!-- Camera with AR capabilities -->
+    <a-entity 
+      id="camera-rig"
+      position="0 0 0">
+      <a-camera 
+        id="camera"
+        position="0 1.6 0"
+        look-controls="enabled: false"
+        wasd-controls="enabled: false">
+        <!-- Hit test indicator -->
+        <a-entity
+          id="marker"
+          hit-test-marker
+          geometry="primitive: ring; radiusInner: 0.1; radiusOuter: 0.15"
+          material="color: white; opacity: 0.7"
+          position="0 0 -2"
+          visible="false">
+          <a-entity
+            geometry="primitive: ring; radiusInner: 0.08; radiusOuter: 0.1"
+            material="color: #00ff00; opacity: 0.8"
+            animation="property: rotation; to: 0 360 0; dur: 2000; loop: true">
+          </a-entity>
+        </a-entity>
+      </a-camera>
+    </a-entity>
+
+    <!-- Model container -->
+    <a-entity id="model-container"></a-entity>
+
+    <!-- Lighting -->
+    <a-light type="ambient" color="#fff" intensity="0.5"></a-light>
+    <a-light type="directional" position="1 2 1" color="#fff" intensity="0.5" cast-shadow></a-light>
+  </a-scene>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay" class="ui-overlay hidden">
+    <!-- Gallery Button -->
+    <button id="gallery-btn" class="ui-btn gallery-btn">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+      </svg>
+      Gallery
+    </button>
+
+    <!-- Controls Panel -->
+    <div id="controls-panel" class="controls-panel">
+      <button id="clear-btn" class="ui-btn">Clear</button>
+      <button id="reload-btn" class="ui-btn">Reload</button>
+      
+      <!-- Layer toggles will be added dynamically -->
+      <div id="layer-toggles" class="layer-toggles hidden">
+        <h3>Layers</h3>
+        <div id="layer-buttons"></div>
+      </div>
+    </div>
+
+    <!-- Gallery Modal -->
+    <div id="gallery-modal" class="gallery-modal hidden">
+      <div class="gallery-content">
+        <button class="close-btn" id="close-gallery">&times;</button>
+        <h2>Select Model</h2>
+        <div id="model-grid" class="model-grid">
+          <!-- Model items will be added dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div id="instructions" class="instructions">
+      <p>Scan the floor to detect a surface, then tap to place the model</p>
+    </div>
+
+    <!-- Debug Info (development only) -->
+    <div id="debug-info" class="debug-info hidden">
+      <div>FPS: <span id="fps">0</span></div>
+      <div>Hit Test: <span id="hit-test-status">inactive</span></div>
+      <div>Model: <span id="model-status">none</span></div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
