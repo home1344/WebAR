@@ -62,17 +62,11 @@ class WebARApp {
       // Setup UI event handlers
       this.setupEventHandlers();
       
-      this.uiController.updateLoadingText('Tap Start to begin AR');
+      this.uiController.updateLoadingText('Starting AR session...');
       this.uiController.updateProgress(100);
- 
-      const startButton = document.getElementById('start-ar-btn');
-      if (startButton) {
-        startButton.style.display = 'inline-block';
-        startButton.disabled = false;
-        startButton.addEventListener('click', () => {
-          this.startARSession();
-        });
-      }
+      
+      // Auto-start AR session
+      await this.startARSession();
       
       this.isInitialized = true;
       console.log('WebAR App: Initialization complete');
@@ -139,13 +133,9 @@ class WebARApp {
   }
 
   async startARSession() {
-    const startButton = document.getElementById('start-ar-btn');
     try {
-      if (startButton) startButton.disabled = true;
-
       if (!window.isSecureContext) {
         this.uiController.updateLoadingText('Failed to start AR: WebXR requires HTTPS (or localhost). Open the HTTPS URL and accept the certificate.');
-        if (startButton) startButton.disabled = false;
         return;
       }
 
@@ -162,7 +152,6 @@ class WebARApp {
       } else {
         this.uiController.updateLoadingText(`Failed to start AR: ${error.message}`);
       }
-      if (startButton) startButton.disabled = false;
     }
   }
 
