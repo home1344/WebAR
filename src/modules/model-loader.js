@@ -3,12 +3,15 @@
  * Handles dynamic loading of GLB/glTF models from server
  */
 
+import { getLogger } from './logger.js';
+
 export class ModelLoader {
   constructor(modelConfigs) {
     this.models = modelConfigs;
     this.loadedModels = new Map();
     this.currentLoadingModel = null;
     this.loadingProgress = 0;
+    this.logger = getLogger();
   }
 
   /**
@@ -17,19 +20,23 @@ export class ModelLoader {
   async loadModel(url, onProgress) {
     // Check cache first
     if (this.loadedModels.has(url)) {
-      console.log('Model loaded from cache:', url);
+      this.logger.info('MODEL_CACHE', 'Model loaded from cache', { url });
       return this.loadedModels.get(url);
     }
     
     try {
       this.currentLoadingModel = url;
+      this.logger.info('NETWORK', `Fetching model: ${url}`);
       
       // Fetch model with progress tracking
       const response = await this.fetchWithProgress(url, onProgress);
       
       if (!response.ok) {
-        throw new Error(`Failed to load model: ${response.status}`);
+        this.logger.logNetworkRequest('GET', url, response.status);
+        throw new Error(`Failed to load model: HTTP ${response.status}`);
       }
+      
+      this.logger.logNetworkRequest('GET', url, response.status);
       
       // Get blob and create object URL
       const blob = await response.blob();
@@ -38,11 +45,17 @@ export class ModelLoader {
       // Cache the object URL
       this.loadedModels.set(url, objectUrl);
       
-      console.log('Model loaded successfully:', url);
+      this.logger.success('NETWORK', 'Model downloaded successfully', { 
+        url, 
+        size: blob.size,
+        type: blob.type 
+      });
       return objectUrl;
       
     } catch (error) {
-      console.error('Error loading model:', error);
+      this.logger.error('NETWORK', `Failed to fetch model: ${url}`, { 
+        error: error.message 
+      });
       throw error;
     } finally {
       this.currentLoadingModel = null;

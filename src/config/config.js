@@ -14,45 +14,53 @@ export const CONFIG = {
     timeout: 30000
   },
   
-  // Model configurations (hardcoded for MVP)
+  // Model configurations - URLs must match actual filenames in public/models/
   models: [
     {
-      id: 'house1',
-      name: 'House 1',
-      url: '/models/house1.glb',
-      thumbnail: '/assets/thumbnails/house1.jpg',
+      id: 'house1a',
+      name: 'House 1a',
+      url: '/models/House%201a.glb',
+      thumbnail: null,
       defaultScale: '0.1 0.1 0.1',
-      layers: [
-        { name: 'Roof', node: 'roof' },
-        { name: 'Floor 1', node: 'floor1', alwaysVisible: true },
-        { name: 'Floor 2', node: 'floor2' }
-      ]
+      layers: []
     },
     {
-      id: 'house1-no-roof',
-      name: 'House 1 (No Roof)',
-      url: '/models/house1.glb',
-      thumbnail: '/assets/thumbnails/house1-no-roof.jpg',
+      id: 'house1b',
+      name: 'House 1b',
+      url: '/models/House%201b.glb',
+      thumbnail: null,
       defaultScale: '0.1 0.1 0.1',
-      hiddenLayers: ['roof'],
-      layers: [
-        { name: 'Floor 1', node: 'floor1', alwaysVisible: true },
-        { name: 'Floor 2', node: 'floor2' }
-      ]
+      layers: []
+    },
+    {
+      id: 'house1c',
+      name: 'House 1c',
+      url: '/models/House%201c.glb',
+      thumbnail: null,
+      defaultScale: '0.1 0.1 0.1',
+      layers: []
+    },
+    {
+      id: 'house1d',
+      name: 'House 1d',
+      url: '/models/House%201d.glb',
+      thumbnail: null,
+      defaultScale: '0.1 0.1 0.1',
+      layers: []
     },
     {
       id: 'house2',
       name: 'House 2',
-      url: '/models/house2.glb',
-      thumbnail: '/assets/thumbnails/house2.jpg',
+      url: '/models/house%202.glb',
+      thumbnail: null,
       defaultScale: '0.1 0.1 0.1',
       layers: []
     },
     {
       id: 'house3',
       name: 'House 3',
-      url: '/models/house3.glb',
-      thumbnail: '/assets/thumbnails/house3.jpg',
+      url: '/models/house%203.glb',
+      thumbnail: null,
       defaultScale: '0.1 0.1 0.1',
       layers: []
     }

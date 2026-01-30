@@ -9,6 +9,7 @@ import { UIController } from './modules/ui-controller.js';
 import { GestureHandler } from './modules/gesture-handler.js';
 import { Gallery } from './modules/gallery.js';
 import { CONFIG } from './config/config.js';
+import { getLogger } from './modules/logger.js';
 import './components/ar-components.js';
 
 class WebARApp {
@@ -20,17 +21,23 @@ class WebARApp {
     this.gallery = null;
     this.currentModel = null;
     this.isInitialized = false;
+    this.logger = null;
   }
 
   async init() {
     try {
-      console.log('WebAR App: Initializing...');
+      // Initialize logger first
+      this.logger = getLogger();
+      this.logger.info('APP_INIT', 'WebAR App initializing...');
       
       // Initialize UI controller first
       this.uiController = new UIController();
       
       // Check WebXR support
-      if (!await this.checkWebXRSupport()) {
+      const webxrSupported = await this.checkWebXRSupport();
+      this.logger.logWebXRSupport(webxrSupported);
+      if (!webxrSupported) {
+        this.logger.warning('APP_INIT', 'WebXR not supported on this device/browser');
         this.uiController.showUnsupportedScreen();
         return;
       }
@@ -59,10 +66,17 @@ class WebARApp {
       this.setupStartButton();
       
       this.isInitialized = true;
-      console.log('WebAR App: Initialization complete - waiting for user to start AR');
+      this.logger.success('APP_INIT', 'Initialization complete - waiting for user to start AR', {
+        modelsAvailable: CONFIG.models.length,
+        config: {
+          hitTestEnabled: true,
+          gesturesEnabled: true
+        }
+      });
       
     } catch (error) {
       console.error('WebAR App: Initialization failed', error);
+      this.logger?.logError('APP_INIT', error);
       this.uiController.showError(`Error: ${error.message}`);
     }
   }
@@ -71,6 +85,8 @@ class WebARApp {
     const startBtn = document.getElementById('start-ar-btn');
     if (startBtn) {
       startBtn.addEventListener('click', async () => {
+        this.logger.event('USER_ACTION', 'Start AR button clicked');
+        
         // Hide button and show loading state
         this.uiController.hideStartButton();
         this.uiController.showLoadingState();
@@ -138,25 +154,32 @@ class WebARApp {
 
   async startARSession() {
     try {
+      this.logger.info('AR_SESSION', 'Starting AR session...');
+      
       if (!window.isSecureContext) {
+        this.logger.error('AR_SESSION', 'Not in secure context', { protocol: window.location.protocol });
         this.uiController.showError('WebXR requires HTTPS (or localhost). Open the HTTPS URL and accept the certificate.');
         return;
       }
 
       this.uiController.updateLoadingText('Checking WebXR support...');
       this.uiController.updateProgress(20);
+      this.logger.info('AR_SESSION', 'Checking WebXR support...');
       
       await new Promise(resolve => setTimeout(resolve, 300));
       
       this.uiController.updateLoadingText('Initializing AR session...');
       this.uiController.updateProgress(50);
+      this.logger.info('AR_SESSION', 'Requesting AR session with hit-test...');
       
       await this.arSession.start();
       
       this.uiController.updateLoadingText('Starting AR...');
       this.uiController.updateProgress(100);
+      this.logger.logSessionStart({ hitTest: true, domOverlay: true });
       
     } catch (error) {
+      this.logger.logError('AR_SESSION', error);
       console.error('Failed to start AR session:', error);
       if (error?.name === 'NotSupportedError') {
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
@@ -171,20 +194,21 @@ class WebARApp {
   }
 
   onSessionStarted() {
-    console.log('AR Session started');
+    this.logger.success('AR_SESSION', 'AR session started successfully');
     this.uiController.hideLoadingScreen();
     this.uiController.showARUI();
     this.uiController.showInstructions('Scan the floor to detect a surface');
   }
 
   onSessionEnded() {
-    console.log('AR Session ended');
+    this.logger.logSessionEnd();
     this.uiController.hideARUI();
     this.uiController.showLoadingScreen();
   }
 
   async onModelSelect(modelConfig) {
-    console.log('Model selected:', modelConfig.name);
+    this.logger.event('USER_ACTION', 'Model selected from gallery', { modelName: modelConfig.name });
+    this.logger.logModelLoad(modelConfig.name, modelConfig.url);
     this.gallery.hide();
     
     if (this.currentModel) {
@@ -199,7 +223,7 @@ class WebARApp {
       await this.loadAndPlaceModel(modelUrl, modelConfig);
       
     } catch (error) {
-      console.error('Failed to load model:', error);
+      this.logger.logModelError(modelConfig.name, error);
       this.uiController.showInstructions('Failed to load model. Try another one.');
     }
   }
@@ -207,16 +231,42 @@ class WebARApp {
   async loadAndPlaceModel(url, config) {
     const container = document.getElementById('model-container');
     
-    // Create model entity
+    // Show loading indicator
+    const loadingIndicator = this.uiController.createModelLoadingIndicator();
+    this.logger.info('MODEL_LOAD', 'Starting model fetch', { url });
+    
+    let modelUrl = url;
+    
+    try {
+      // Use ModelLoader to fetch with progress tracking
+      modelUrl = await this.modelLoader.loadModel(url, (progress, received, total) => {
+        this.uiController.updateModelLoadingProgress(loadingIndicator, progress);
+        this.logger.info('MODEL_LOAD', `Loading progress: ${progress}%`, { received, total });
+      });
+      
+      this.logger.success('MODEL_LOAD', 'Model fetched successfully', { objectUrl: modelUrl });
+      
+    } catch (fetchError) {
+      this.logger.logModelError(config.name, fetchError);
+      this.uiController.removeModelLoadingIndicator(loadingIndicator);
+      this.uiController.showInstructions('Failed to download model. Check network connection.');
+      throw fetchError;
+    }
+    
+    // Create model entity with the loaded object URL
     const modelEntity = document.createElement('a-entity');
     modelEntity.setAttribute('id', 'current-model');
-    modelEntity.setAttribute('gltf-model', url);
+    modelEntity.setAttribute('gltf-model', modelUrl);
     modelEntity.setAttribute('scale', config.defaultScale || '1 1 1');
-    modelEntity.setAttribute('model-gestures', '');
     
-    // Add to container at last hit position
+    // Add to container at last hit position or wait for tap
     if (this.arSession.lastHitPosition) {
       modelEntity.setAttribute('position', this.arSession.lastHitPosition);
+      this.logger.info('MODEL_PLACE', 'Placing at last hit position', this.arSession.lastHitPosition);
+    } else {
+      // Place at origin temporarily, user will tap to reposition
+      modelEntity.setAttribute('position', '0 0 -2');
+      this.logger.warning('MODEL_PLACE', 'No hit position available, placing at default position');
     }
     
     container.appendChild(modelEntity);
@@ -227,32 +277,46 @@ class WebARApp {
       this.setupLayerControls(config.layers);
     }
     
-    // Listen for model loaded
+    // Listen for model loaded (A-Frame parsed the glTF)
     modelEntity.addEventListener('model-loaded', () => {
-      console.log('Model loaded successfully');
-      this.uiController.showInstructions('Model placed. Use gestures to rotate and scale.');
+      this.uiController.removeModelLoadingIndicator(loadingIndicator);
+      this.logger.logModelLoaded(config.name || 'Unknown');
+      
+      if (this.arSession.lastHitPosition) {
+        this.uiController.showInstructions('Model placed. Use gestures to rotate and scale.');
+      } else {
+        this.uiController.showInstructions('Tap on a detected surface to place the model.');
+      }
       
       // Apply gesture handler
       this.gestureHandler.attachToModel(modelEntity);
     });
     
-    // Listen for model error
+    // Listen for model error (A-Frame failed to parse glTF)
     modelEntity.addEventListener('model-error', (e) => {
-      console.error('Model loading error:', e.detail);
-      this.uiController.showInstructions('Error loading model');
+      this.uiController.removeModelLoadingIndicator(loadingIndicator);
+      this.logger.error('MODEL_LOAD', 'A-Frame model parsing error', { 
+        error: e.detail?.message || e.detail || 'Unknown error',
+        url: url
+      });
+      this.uiController.showInstructions('Error loading model. File may be corrupted.');
     });
   }
 
   async onPlaceModel(position) {
+    this.logger.logModelPlacement(position);
+    
     if (!this.currentModel && CONFIG.models.length > 0) {
       // Load first model by default
       const firstModel = CONFIG.models[0];
+      this.logger.info('MODEL_PLACE', 'No model selected, loading default model');
       await this.onModelSelect(firstModel);
     }
     
     // Update model position if already exists
     if (this.currentModel) {
       this.currentModel.setAttribute('position', position);
+      this.logger.event('MODEL_PLACE', 'Model position updated', position);
     }
   }
 
@@ -301,18 +365,21 @@ class WebARApp {
 
   clearModel() {
     if (this.currentModel) {
+      this.logger.event('USER_ACTION', 'Clear model requested');
       this.currentModel.parentNode.removeChild(this.currentModel);
       this.currentModel = null;
       
       // Hide layer controls
       document.getElementById('layer-toggles').classList.add('hidden');
       
+      this.logger.info('MODEL', 'Model cleared');
       this.uiController.showInstructions('Model cleared. Select a new model from the gallery.');
     }
   }
 
   reloadModel() {
     if (this.currentModel) {
+      this.logger.event('USER_ACTION', 'Reload model requested');
       const modelUrl = this.currentModel.getAttribute('gltf-model');
       const position = this.currentModel.getAttribute('position');
       const scale = this.currentModel.getAttribute('scale');
@@ -326,12 +393,12 @@ class WebARApp {
       modelEntity.setAttribute('gltf-model', modelUrl);
       modelEntity.setAttribute('position', position);
       modelEntity.setAttribute('scale', scale);
-      modelEntity.setAttribute('model-gestures', '');
       
       document.getElementById('model-container').appendChild(modelEntity);
       this.currentModel = modelEntity;
       
       this.gestureHandler.attachToModel(modelEntity);
+      this.logger.info('MODEL', 'Model reloaded', { url: modelUrl });
       this.uiController.showInstructions('Model reloaded');
     }
   }

@@ -3,6 +3,8 @@
  * Handles WebXR session lifecycle and hit testing
  */
 
+import { getLogger } from './logger.js';
+
 export class ARSession {
   constructor(onPlaceCallback, onStartCallback, onEndCallback) {
     this.session = null;
@@ -13,6 +15,9 @@ export class ARSession {
     this.scene = null;
     this.renderer = null;
     this.lastHitPosition = null;
+    this.logger = getLogger();
+    this.lastHitLogTime = 0;
+    this.hitLogInterval = 2000; // Log hit status every 2 seconds max
     
     // Callbacks
     this.onPlace = onPlaceCallback;
@@ -53,13 +58,7 @@ export class ARSession {
           ...(overlayRoot ? { domOverlay: { root: overlayRoot } } : {})
         },
         {
-          optionalFeatures: ['hit-test', 'dom-overlay'],
-          ...(overlayRoot ? { domOverlay: { root: overlayRoot } } : {})
-        },
-        {
-          optionalFeatures: ['hit-test']
-        },
-        {
+          requiredFeatures: ['hit-test'],
           optionalFeatures: []
         }
       ];
@@ -117,13 +116,17 @@ export class ARSession {
   }
 
   async configureSession() {
+    this.logger.info('AR_CONFIG', 'Configuring AR session...');
+    
     // Create reference space
     this.referenceSpace = await this.session.requestReferenceSpace('local');
     this.viewerSpace = await this.session.requestReferenceSpace('viewer');
+    this.logger.info('AR_CONFIG', 'Reference spaces created', { local: true, viewer: true });
     
     // Setup hit test source
     if (!this.session.requestHitTestSource) {
       this.hitTestAvailable = false;
+      this.logger.error('HIT_TEST', 'Hit-test API not available on this session');
       throw new Error('Hit-test is not available in this AR session. Install/enable Google Play Services for AR (ARCore) and try again.');
     }
 
@@ -133,19 +136,22 @@ export class ARSession {
 
     if (typeof XRRay !== 'undefined') {
       hitTestOptionsInit.offsetRay = new XRRay();
+      this.logger.info('HIT_TEST', 'Using XRRay for hit-test offset');
     }
 
     try {
       this.hitTestSource = await this.session.requestHitTestSource(hitTestOptionsInit);
       this.hitTestAvailable = true;
-      console.log('Hit test source created');
+      this.logger.success('HIT_TEST', 'Hit-test source created successfully');
     } catch (error) {
       this.hitTestAvailable = false;
+      this.logger.error('HIT_TEST', 'Failed to create hit-test source', { error: error.message });
       throw new Error('Failed to enable hit-test for AR session. Make sure Google Play Services for AR (ARCore) is installed/enabled, then retry.');
     }
     
     // Start frame loop for hit testing
     this.session.requestAnimationFrame(this.onXRFrame.bind(this));
+    this.logger.info('AR_CONFIG', 'XR frame loop started');
   }
 
   onXRFrame(time, frame) {
@@ -176,11 +182,26 @@ export class ARSession {
           
           // Update UI status
           this.updateHitTestStatus(true);
+          
+          // Throttled logging for hit detection
+          if (time - this.lastHitLogTime > this.hitLogInterval) {
+            this.logger.event('HIT_TEST', 'Surface detected', {
+              position: this.lastHitPosition,
+              resultsCount: hitTestResults.length
+            });
+            this.lastHitLogTime = time;
+          }
         }
       } else {
         // No hit detected
         this.updateHitTestStatus(false);
         this.hideHitMarker();
+        
+        // Throttled logging for no hit
+        if (time - this.lastHitLogTime > this.hitLogInterval) {
+          this.logger.info('HIT_TEST', 'Searching for surface...');
+          this.lastHitLogTime = time;
+        }
       }
     }
     
@@ -193,29 +214,26 @@ export class ARSession {
     
     const transform = pose.transform;
     
-    // Convert WebXR coordinates to A-Frame coordinates
+    // Use WebXR coordinates directly (consistent with lastHitPosition)
     const position = {
       x: transform.position.x,
       y: transform.position.y,
-      z: -transform.position.z // A-Frame uses different Z direction
+      z: transform.position.z
     };
     
-    // Update marker position
-    this.hitTestMarker.setAttribute('position', position);
+    // Update marker position in world space
+    this.hitTestMarker.object3D.position.set(position.x, position.y, position.z);
     this.hitTestMarker.setAttribute('visible', true);
     
-    // Update rotation if needed
+    // Update rotation from hit pose quaternion
     const orientation = transform.orientation;
     if (orientation) {
-      const quaternion = new THREE.Quaternion(
+      this.hitTestMarker.object3D.quaternion.set(
         orientation.x,
         orientation.y,
         orientation.z,
         orientation.w
       );
-      
-      const euler = new THREE.Euler().setFromQuaternion(quaternion);
-      this.hitTestMarker.object3D.rotation.copy(euler);
     }
   }
 
@@ -228,11 +246,13 @@ export class ARSession {
   onSelect(event) {
     // Place model at hit location
     if (this.lastHitPosition && this.onPlace) {
-      console.log('Placing model at:', this.lastHitPosition);
+      this.logger.event('USER_ACTION', 'Screen tap - placing model', { position: this.lastHitPosition });
       this.onPlace(this.lastHitPosition);
       
       // Hide marker after placement
       this.hideHitMarker();
+    } else {
+      this.logger.warning('USER_ACTION', 'Screen tap but no valid hit position available');
     }
   }
 
@@ -273,7 +293,7 @@ export class ARSession {
   }
 
   onSessionEnd() {
-    console.log('AR Session ended');
+    this.logger.info('AR_SESSION', 'AR session ended');
     
     // Clean up
     this.session = null;
