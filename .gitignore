@@ -34,3 +34,5 @@ temp/
 docs/
 images/
 models/
+!public/models/
+!public/models/**

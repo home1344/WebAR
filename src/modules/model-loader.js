@@ -18,25 +18,35 @@ export class ModelLoader {
    * Load a model from URL with progress tracking
    */
   async loadModel(url, onProgress) {
+    const startTime = Date.now();
+    
     // Check cache first
     if (this.loadedModels.has(url)) {
-      this.logger.info('MODEL_CACHE', 'Model loaded from cache', { url });
+      this.logger.info('MODEL_CACHE', 'Model loaded from cache', { 
+        url,
+        fullUrl: new URL(url, window.location.origin).href
+      });
       return this.loadedModels.get(url);
     }
     
     try {
       this.currentLoadingModel = url;
-      this.logger.info('NETWORK', `Fetching model: ${url}`);
+      this.logger.logFetchAttempt(url, { method: 'GET' });
       
       // Fetch model with progress tracking
       const response = await this.fetchWithProgress(url, onProgress);
       
-      if (!response.ok) {
-        this.logger.logNetworkRequest('GET', url, response.status);
-        throw new Error(`Failed to load model: HTTP ${response.status}`);
-      }
+      // Log response details
+      this.logger.logFetchResponse(url, response, startTime);
       
-      this.logger.logNetworkRequest('GET', url, response.status);
+      if (!response.ok) {
+        this.logger.logNetworkRequest('GET', url, response.status, {
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          duration: Date.now() - startTime
+        });
+        throw new Error(`Failed to load model: HTTP ${response.status} ${response.statusText}`);
+      }
       
       // Get blob and create object URL
       const blob = await response.blob();
@@ -45,22 +55,44 @@ export class ModelLoader {
       // Cache the object URL
       this.loadedModels.set(url, objectUrl);
       
+      const loadTime = Date.now() - startTime;
       this.logger.success('NETWORK', 'Model downloaded successfully', { 
-        url, 
+        url,
+        fullUrl: new URL(url, window.location.origin).href,
         size: blob.size,
-        type: blob.type 
+        sizeFormatted: this.formatBytes(blob.size),
+        type: blob.type,
+        loadTime: `${loadTime}ms`,
+        cached: false
       });
       return objectUrl;
       
     } catch (error) {
+      const loadTime = Date.now() - startTime;
       this.logger.error('NETWORK', `Failed to fetch model: ${url}`, { 
-        error: error.message 
+        error: error.message,
+        stack: error.stack,
+        url,
+        fullUrl: new URL(url, window.location.origin).href,
+        loadTime: `${loadTime}ms`,
+        timestamp: Date.now()
       });
       throw error;
     } finally {
       this.currentLoadingModel = null;
       this.loadingProgress = 0;
     }
+  }
+
+  /**
+   * Format bytes to human readable format
+   */
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
   /**

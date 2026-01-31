@@ -57,7 +57,16 @@ export class Logger {
       devicePixelRatio: window.devicePixelRatio,
       isSecureContext: window.isSecureContext,
       protocol: window.location.protocol,
-      host: window.location.host
+      host: window.location.host,
+      pathname: window.location.pathname,
+      origin: window.location.origin,
+      timestamp: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      memory: performance.memory ? {
+        usedJSHeapSize: performance.memory.usedJSHeapSize,
+        totalJSHeapSize: performance.memory.totalJSHeapSize,
+        jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+      } : 'unavailable'
     };
 
     this.info('SYSTEM_INFO', 'Application initialized', info);
@@ -167,23 +176,42 @@ export class Logger {
     this.info('AR_SESSION', 'AR session ended');
   }
 
-  logHitTestStatus(active, position = null) {
+  logHitTestStatus(active, position = null, resultsCount = 0) {
     this.event('HIT_TEST', active ? 'Surface detected' : 'Searching for surface', {
       active,
-      position
+      position,
+      resultsCount,
+      timestamp: Date.now()
     });
   }
 
   logModelLoad(modelName, url) {
-    this.info('MODEL_LOAD', `Loading model: ${modelName}`, { name: modelName, url });
+    this.info('MODEL_LOAD', `Loading model: ${modelName}`, { 
+      name: modelName, 
+      url,
+      fullUrl: new URL(url, window.location.origin).href,
+      timestamp: Date.now()
+    });
   }
 
-  logModelLoaded(modelName) {
-    this.success('MODEL_LOAD', `Model loaded: ${modelName}`);
+  logModelLoaded(modelName, details = {}) {
+    this.success('MODEL_LOAD', `Model loaded: ${modelName}`, {
+      name: modelName,
+      loadTime: details.loadTime,
+      size: details.size,
+      cached: details.cached || false
+    });
   }
 
-  logModelError(modelName, error) {
-    this.error('MODEL_LOAD', `Failed to load model: ${modelName}`, { error: error.message || error });
+  logModelError(modelName, error, context = {}) {
+    this.error('MODEL_LOAD', `Failed to load model: ${modelName}`, { 
+      error: error.message || error,
+      stack: error.stack,
+      url: context.url,
+      httpStatus: context.httpStatus,
+      responseType: context.responseType,
+      timestamp: Date.now()
+    });
   }
 
   logModelPlacement(position) {
@@ -194,15 +222,30 @@ export class Logger {
     this.event('GESTURE', `Gesture: ${type}`, data);
   }
 
-  logNetworkRequest(method, url, status) {
+  logNetworkRequest(method, url, status, details = {}) {
     const level = status >= 400 ? 'error' : 'info';
-    this.addLog(level, 'NETWORK', `${method} ${url}`, { status });
+    this.addLog(level, 'NETWORK', `${method} ${url}`, { 
+      status,
+      method,
+      url,
+      fullUrl: new URL(url, window.location.origin).href,
+      statusText: details.statusText,
+      contentType: details.contentType,
+      contentLength: details.contentLength,
+      duration: details.duration,
+      cached: details.cached || false,
+      timestamp: Date.now()
+    });
   }
 
-  logError(context, error) {
+  logError(context, error, additionalData = {}) {
     this.error('ERROR', `Error in ${context}`, {
       message: error.message || error,
-      stack: error.stack
+      stack: error.stack,
+      name: error.name,
+      context,
+      ...additionalData,
+      timestamp: Date.now()
     });
   }
 
@@ -260,12 +303,56 @@ export class Logger {
 
   // Get current status summary
   getStatus() {
+    const errors = this.logs.filter(l => l.level === 'error');
+    const warnings = this.logs.filter(l => l.level === 'warning');
+    const networkErrors = errors.filter(l => l.eventName === 'NETWORK');
+    
     return {
       totalLogs: this.logs.length,
-      errors: this.logs.filter(l => l.level === 'error').length,
-      warnings: this.logs.filter(l => l.level === 'warning').length,
-      lastLog: this.logs[this.logs.length - 1] || null
+      errors: errors.length,
+      warnings: warnings.length,
+      networkErrors: networkErrors.length,
+      lastLog: this.logs[this.logs.length - 1] || null,
+      errorSummary: errors.slice(-5).map(e => ({
+        event: e.eventName,
+        message: e.message,
+        time: e.timestamp
+      }))
     };
+  }
+
+  // Log fetch attempt with full details
+  logFetchAttempt(url, options = {}) {
+    this.info('FETCH_START', `Attempting to fetch: ${url}`, {
+      url,
+      fullUrl: new URL(url, window.location.origin).href,
+      method: options.method || 'GET',
+      headers: options.headers,
+      timestamp: Date.now()
+    });
+  }
+
+  // Log fetch response with full details
+  logFetchResponse(url, response, startTime) {
+    const duration = Date.now() - startTime;
+    const level = response.ok ? 'success' : 'error';
+    
+    this.addLog(level, 'FETCH_RESPONSE', `Response from: ${url}`, {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      redirected: response.redirected,
+      type: response.type,
+      headers: {
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length'),
+        cacheControl: response.headers.get('cache-control'),
+        lastModified: response.headers.get('last-modified')
+      },
+      duration: `${duration}ms`,
+      timestamp: Date.now()
+    });
   }
 }
 

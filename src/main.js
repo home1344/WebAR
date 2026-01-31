@@ -207,7 +207,13 @@ class WebARApp {
   }
 
   async onModelSelect(modelConfig) {
-    this.logger.event('USER_ACTION', 'Model selected from gallery', { modelName: modelConfig.name });
+    const startTime = Date.now();
+    this.logger.event('USER_ACTION', 'Model selected from gallery', { 
+      modelName: modelConfig.name,
+      modelId: modelConfig.id,
+      url: modelConfig.url,
+      timestamp: startTime
+    });
     this.logger.logModelLoad(modelConfig.name, modelConfig.url);
     this.gallery.hide();
     
@@ -222,18 +228,32 @@ class WebARApp {
       const modelUrl = modelConfig.url;
       await this.loadAndPlaceModel(modelUrl, modelConfig);
       
+      const loadTime = Date.now() - startTime;
+      this.logger.logModelLoaded(modelConfig.name, { loadTime });
+      
     } catch (error) {
-      this.logger.logModelError(modelConfig.name, error);
+      this.logger.logModelError(modelConfig.name, error, {
+        url: modelConfig.url,
+        httpStatus: error.message.match(/HTTP (\d+)/)?.[1],
+        loadTime: Date.now() - startTime
+      });
       this.uiController.showInstructions('Failed to load model. Try another one.');
     }
   }
 
   async loadAndPlaceModel(url, config) {
     const container = document.getElementById('model-container');
+    const startTime = Date.now();
     
     // Show loading indicator
     const loadingIndicator = this.uiController.createModelLoadingIndicator();
-    this.logger.info('MODEL_LOAD', 'Starting model fetch', { url });
+    this.logger.info('MODEL_LOAD', 'Starting model fetch', { 
+      url,
+      fullUrl: new URL(url, window.location.origin).href,
+      modelName: config.name,
+      modelId: config.id,
+      timestamp: startTime
+    });
     
     let modelUrl = url;
     

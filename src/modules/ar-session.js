@@ -18,6 +18,7 @@ export class ARSession {
     this.logger = getLogger();
     this.lastHitLogTime = 0;
     this.hitLogInterval = 2000; // Log hit status every 2 seconds max
+    this.hitTestResultsCount = 0;
     
     // Callbacks
     this.onPlace = onPlaceCallback;
@@ -44,7 +45,7 @@ export class ARSession {
 
   async start() {
     if (this.session) {
-      console.warn('AR session already active');
+      this.logger.warning('AR_SESSION', 'AR session already active');
       return;
     }
     
@@ -63,13 +64,26 @@ export class ARSession {
         }
       ];
 
+      this.logger.info('AR_SESSION', 'Requesting AR session', {
+        candidates: sessionInitCandidates.length,
+        hasOverlay: !!overlayRoot
+      });
+
       let lastError = null;
+      let attemptNumber = 0;
       for (const sessionInit of sessionInitCandidates) {
         try {
+          attemptNumber++;
+          this.logger.info('AR_SESSION', `Attempt ${attemptNumber}: Requesting session`, sessionInit);
           this.session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+          this.logger.success('AR_SESSION', `Session created on attempt ${attemptNumber}`);
           break;
         } catch (err) {
           lastError = err;
+          this.logger.warning('AR_SESSION', `Attempt ${attemptNumber} failed`, {
+            error: err.message,
+            name: err.name
+          });
           if (err && err.name === 'NotSupportedError') {
             continue;
           }
@@ -184,11 +198,9 @@ export class ARSession {
           this.updateHitTestStatus(true);
           
           // Throttled logging for hit detection
+          this.hitTestResultsCount = hitTestResults.length;
           if (time - this.lastHitLogTime > this.hitLogInterval) {
-            this.logger.event('HIT_TEST', 'Surface detected', {
-              position: this.lastHitPosition,
-              resultsCount: hitTestResults.length
-            });
+            this.logger.logHitTestStatus(true, this.lastHitPosition, this.hitTestResultsCount);
             this.lastHitLogTime = time;
           }
         }
@@ -198,8 +210,9 @@ export class ARSession {
         this.hideHitMarker();
         
         // Throttled logging for no hit
+        this.hitTestResultsCount = 0;
         if (time - this.lastHitLogTime > this.hitLogInterval) {
-          this.logger.info('HIT_TEST', 'Searching for surface...');
+          this.logger.logHitTestStatus(false, null, 0);
           this.lastHitLogTime = time;
         }
       }

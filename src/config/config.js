@@ -17,49 +17,9 @@ export const CONFIG = {
   // Model configurations - URLs must match actual filenames in public/models/
   models: [
     {
-      id: 'house1a',
-      name: 'House 1a',
-      url: '/models/House%201a.glb',
-      thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
-      layers: []
-    },
-    {
-      id: 'house1b',
-      name: 'House 1b',
-      url: '/models/House%201b.glb',
-      thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
-      layers: []
-    },
-    {
-      id: 'house1c',
-      name: 'House 1c',
-      url: '/models/House%201c.glb',
-      thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
-      layers: []
-    },
-    {
-      id: 'house1d',
-      name: 'House 1d',
-      url: '/models/House%201d.glb',
-      thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
-      layers: []
-    },
-    {
       id: 'house2',
       name: 'House 2',
-      url: '/models/house%202.glb',
-      thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
-      layers: []
-    },
-    {
-      id: 'house3',
-      name: 'House 3',
-      url: '/models/house%203.glb',
+      url: '/models/house_2.glb',
       thumbnail: null,
       defaultScale: '0.1 0.1 0.1',
       layers: []
