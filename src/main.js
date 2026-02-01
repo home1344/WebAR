@@ -197,7 +197,58 @@ class WebARApp {
     this.logger.success('AR_SESSION', 'AR session started successfully');
     this.uiController.hideLoadingScreen();
     this.uiController.showARUI();
-    this.uiController.showInstructions('Scan the floor to detect a surface');
+    // Initial instructions are shown by showARUI() with proper state
+    
+    // Track surface detection state for instruction updates
+    this.surfaceDetected = false;
+    this.setupSurfaceDetectionListener();
+  }
+
+  /**
+   * Setup listener for surface detection state changes
+   */
+  setupSurfaceDetectionListener() {
+    // Monitor surface status badge for state changes
+    const surfaceStatus = document.getElementById('surface-status');
+    if (surfaceStatus) {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class') {
+            const isDetected = surfaceStatus.classList.contains('detected');
+            if (isDetected && !this.surfaceDetected) {
+              this.surfaceDetected = true;
+              this.onSurfaceDetected();
+            } else if (!isDetected && this.surfaceDetected) {
+              this.surfaceDetected = false;
+              this.onSurfaceLost();
+            }
+          }
+        });
+      });
+      observer.observe(surfaceStatus, { attributes: true });
+    }
+  }
+
+  /**
+   * Called when surface is first detected
+   */
+  onSurfaceDetected() {
+    if (!this.currentModel) {
+      this.uiController.showSurfaceDetectedInstructions();
+    }
+  }
+
+  /**
+   * Called when surface is lost
+   */
+  onSurfaceLost() {
+    if (!this.currentModel) {
+      this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+        duration: 0,
+        icon: 'scan',
+        state: 'scanning'
+      });
+    }
   }
 
   onSessionEnded() {
@@ -221,8 +272,8 @@ class WebARApp {
       this.clearModel();
     }
     
-    // Load and place the selected model
-    this.uiController.showInstructions('Loading model...');
+    // Show loading instructions with model name
+    this.uiController.showLoadingInstructions(modelConfig.name);
     
     try {
       const modelUrl = modelConfig.url;
@@ -237,7 +288,8 @@ class WebARApp {
         httpStatus: error.message.match(/HTTP (\d+)/)?.[1],
         loadTime: Date.now() - startTime
       });
-      this.uiController.showInstructions('Failed to load model. Try another one.');
+      this.uiController.showToast('Failed to load model', 'error', { title: 'Error' });
+      this.uiController.hideInstructions();
     }
   }
 
@@ -302,10 +354,13 @@ class WebARApp {
       this.uiController.removeModelLoadingIndicator(loadingIndicator);
       this.logger.logModelLoaded(config.name || 'Unknown');
       
+      // Show success toast
+      this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
+      
       if (this.arSession.lastHitPosition) {
-        this.uiController.showInstructions('Model placed. Use gestures to rotate and scale.');
+        this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
       } else {
-        this.uiController.showInstructions('Tap on a detected surface to place the model.');
+        this.uiController.showSurfaceDetectedInstructions();
       }
       
       // Apply gesture handler
@@ -319,7 +374,8 @@ class WebARApp {
         error: e.detail?.message || e.detail || 'Unknown error',
         url: url
       });
-      this.uiController.showInstructions('Error loading model. File may be corrupted.');
+      this.uiController.showToast('Model file may be corrupted', 'error', { title: 'Loading Error' });
+      this.uiController.hideInstructions();
     });
   }
 
@@ -329,7 +385,8 @@ class WebARApp {
     if (!this.currentModel && CONFIG.models.length > 0) {
       // Load first model by default
       const firstModel = CONFIG.models[0];
-      this.logger.info('MODEL_PLACE', 'No model selected, loading default model');
+      this.logger.info('MODEL_PLACE', 'No model selected, loading default model', { modelName: firstModel.name });
+      this.uiController.showToast(`Loading ${firstModel.name}...`, 'info', { title: 'Auto-selecting model' });
       await this.onModelSelect(firstModel);
     }
     
@@ -337,6 +394,7 @@ class WebARApp {
     if (this.currentModel) {
       this.currentModel.setAttribute('position', position);
       this.logger.event('MODEL_PLACE', 'Model position updated', position);
+      this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
     }
   }
 
@@ -393,7 +451,18 @@ class WebARApp {
       document.getElementById('layer-toggles').classList.add('hidden');
       
       this.logger.info('MODEL', 'Model cleared');
-      this.uiController.showInstructions('Model cleared. Select a new model from the gallery.');
+      this.uiController.showToast('Model cleared', 'info');
+      
+      // Reset to scanning state
+      if (this.surfaceDetected) {
+        this.uiController.showSurfaceDetectedInstructions();
+      } else {
+        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          duration: 0,
+          icon: 'scan',
+          state: 'scanning'
+        });
+      }
     }
   }
 
@@ -419,7 +488,7 @@ class WebARApp {
       
       this.gestureHandler.attachToModel(modelEntity);
       this.logger.info('MODEL', 'Model reloaded', { url: modelUrl });
-      this.uiController.showInstructions('Model reloaded');
+      this.uiController.showToast('Model reloaded', 'success');
     }
   }
 

@@ -97,18 +97,48 @@
       </a-camera>
     </a-entity>
 
-    <!-- Hit test marker (world space - NOT inside camera) -->
+    <!-- Hit test marker (world space - NOT inside camera) - Enhanced Reticle -->
     <a-entity
       id="marker"
       hit-test-marker
-      geometry="primitive: ring; radiusInner: 0.1; radiusOuter: 0.15"
-      material="color: white; opacity: 0.7"
-      rotation="-90 0 0"
       visible="false">
+      <!-- Outer glow ring -->
       <a-entity
-        geometry="primitive: ring; radiusInner: 0.08; radiusOuter: 0.1"
-        material="color: #00ff00; opacity: 0.8"
-        animation="property: rotation; to: 0 360 0; dur: 2000; loop: true">
+        geometry="primitive: ring; radiusInner: 0.18; radiusOuter: 0.22"
+        material="color: #22c55e; opacity: 0.4; transparent: true"
+        rotation="-90 0 0">
+      </a-entity>
+      <!-- Main ring -->
+      <a-entity
+        geometry="primitive: ring; radiusInner: 0.12; radiusOuter: 0.18"
+        material="color: white; opacity: 0.9"
+        rotation="-90 0 0">
+      </a-entity>
+      <!-- Inner animated ring -->
+      <a-entity
+        geometry="primitive: ring; radiusInner: 0.08; radiusOuter: 0.12"
+        material="color: #22c55e; opacity: 0.95"
+        rotation="-90 0 0"
+        animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 800; loop: true; dir: alternate; easing: easeInOutQuad">
+      </a-entity>
+      <!-- Center dot -->
+      <a-entity
+        geometry="primitive: circle; radius: 0.04"
+        material="color: white; opacity: 1"
+        rotation="-90 0 0">
+      </a-entity>
+      <!-- Crosshair lines -->
+      <a-entity
+        geometry="primitive: plane; width: 0.35; height: 0.015"
+        material="color: white; opacity: 0.6; transparent: true"
+        rotation="-90 0 0"
+        position="0 0.001 0">
+      </a-entity>
+      <a-entity
+        geometry="primitive: plane; width: 0.015; height: 0.35"
+        material="color: white; opacity: 0.6; transparent: true"
+        rotation="-90 0 0"
+        position="0 0.001 0">
       </a-entity>
     </a-entity>
 
@@ -181,10 +211,24 @@
       </div>
     </div>
 
+    <!-- Surface Status Badge (always visible during AR) -->
+    <div id="surface-status" class="surface-status">
+      <div class="status-indicator searching"></div>
+      <span class="status-text">Searching for surface...</span>
+    </div>
+
     <!-- Instructions -->
     <div id="instructions" class="instructions">
-      <p>Scan the floor to detect a surface, then tap to place the model</p>
+      <div class="instruction-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+      </div>
+      <p>Scan the floor to detect a surface</p>
     </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Debug Info (development only) -->
     <div id="debug-info" class="debug-info hidden">

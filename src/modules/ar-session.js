@@ -270,17 +270,42 @@ export class ARSession {
   }
 
   updateHitTestStatus(active) {
+    // Update debug status (if visible)
     const statusEl = document.getElementById('hit-test-status');
     if (statusEl) {
       statusEl.textContent = active ? 'active' : 'searching...';
       statusEl.className = active ? 'active' : '';
     }
     
-    // Update instructions
-    const instructions = document.getElementById('instructions');
-    if (instructions && active) {
-      instructions.querySelector('p').textContent = 'Tap to place the model';
+    // Update surface status badge (always visible)
+    const surfaceStatus = document.getElementById('surface-status');
+    if (surfaceStatus) {
+      const indicator = surfaceStatus.querySelector('.status-indicator');
+      const statusText = surfaceStatus.querySelector('.status-text');
+      
+      if (active) {
+        surfaceStatus.classList.add('detected');
+        if (indicator) {
+          indicator.classList.remove('searching');
+          indicator.classList.add('detected');
+        }
+        if (statusText) {
+          statusText.textContent = 'Surface detected - Tap to place';
+        }
+      } else {
+        surfaceStatus.classList.remove('detected');
+        if (indicator) {
+          indicator.classList.remove('detected');
+          indicator.classList.add('searching');
+        }
+        if (statusText) {
+          statusText.textContent = 'Searching for surface...';
+        }
+      }
     }
+    
+    // Update instructions only on first detection (handled by UIController)
+    // The instruction update is now managed by the main app to avoid conflicts
   }
 
   updateDebugInfo(time) {
