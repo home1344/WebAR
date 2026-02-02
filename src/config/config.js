@@ -21,7 +21,7 @@ export const CONFIG = {
       name: 'House 2',
       url: '/models/house_2.glb',
       thumbnail: null,
-      defaultScale: '0.1 0.1 0.1',
+      defaultScale: '1 1 1',
       layers: []
     }
   ],

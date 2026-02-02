@@ -333,12 +333,13 @@ class WebARApp {
     
     // Add to container at last hit position or wait for tap
     if (this.arSession.lastHitPosition) {
-      modelEntity.setAttribute('position', this.arSession.lastHitPosition);
+      const pos = this.arSession.lastHitPosition;
+      modelEntity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
       this.logger.info('MODEL_PLACE', 'Placing at last hit position', this.arSession.lastHitPosition);
     } else {
-      // Place at origin temporarily, user will tap to reposition
-      modelEntity.setAttribute('position', '0 0 -2');
-      this.logger.warning('MODEL_PLACE', 'No hit position available, placing at default position');
+      // Don't place model until we have a hit position
+      this.logger.warning('MODEL_PLACE', 'No hit position available, waiting for surface detection');
+      // Model will be placed when user taps on detected surface
     }
     
     container.appendChild(modelEntity);
@@ -382,19 +383,17 @@ class WebARApp {
   async onPlaceModel(position) {
     this.logger.logModelPlacement(position);
     
-    if (!this.currentModel && CONFIG.models.length > 0) {
-      // Load first model by default
-      const firstModel = CONFIG.models[0];
-      this.logger.info('MODEL_PLACE', 'No model selected, loading default model', { modelName: firstModel.name });
-      this.uiController.showToast(`Loading ${firstModel.name}...`, 'info', { title: 'Auto-selecting model' });
-      await this.onModelSelect(firstModel);
-    }
-    
-    // Update model position if already exists
+    // Only place model if one has been selected from gallery
     if (this.currentModel) {
-      this.currentModel.setAttribute('position', position);
+      // Set position using string format for A-Frame
+      const posString = `${position.x} ${position.y} ${position.z}`;
+      this.currentModel.setAttribute('position', posString);
+      this.currentModel.setAttribute('visible', 'true');
       this.logger.event('MODEL_PLACE', 'Model position updated', position);
       this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+    } else {
+      // Prompt user to select a model from gallery
+      this.uiController.showToast('Please select a model from the gallery', 'info');
     }
   }
 
