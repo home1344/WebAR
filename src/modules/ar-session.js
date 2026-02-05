@@ -283,9 +283,19 @@ export class ARSession {
 
   onSelect(event) {
     // Place model at hit location
-    if (this.lastHitPosition && this.onPlace) {
-      this.logger.event('USER_ACTION', 'Screen tap - placing model', { position: this.lastHitPosition });
-      this.onPlace(this.lastHitPosition);
+    let placePosition = this.lastHitPosition;
+    
+    // Fix 8: Fallback to marker position if lastHitPosition is null but marker is visible
+    // This can happen due to brief hit-test drop between frames
+    if (!placePosition && this.hitTestMarker?.object3D && this.hitTestMarker.getAttribute('visible')) {
+      const markerPos = this.hitTestMarker.object3D.position;
+      placePosition = { x: markerPos.x, y: markerPos.y, z: markerPos.z };
+      this.logger.info('USER_ACTION', 'Using marker position as fallback', { position: placePosition });
+    }
+    
+    if (placePosition && this.onPlace) {
+      this.logger.event('USER_ACTION', 'Screen tap - placing model', { position: placePosition });
+      this.onPlace(placePosition);
       
       // Hide marker after placement
       this.hideHitMarker();

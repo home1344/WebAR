@@ -352,8 +352,9 @@ class WebARApp {
     // IMPORTANT: Hide model until user taps to place it
     modelEntity.setAttribute('visible', 'false');
     
-    // Set initial position (will be updated on placement)
-    modelEntity.setAttribute('position', '0 -1000 0');  // Off-screen initially
+    // Position at origin initially (will be updated on placement)
+    // DO NOT use off-screen Y like -1000 as it pollutes bounding box calculation
+    modelEntity.setAttribute('position', '0 0 0');
     this.logger.info('MODEL_LOAD', 'Model created but hidden until placement');
     
     container.appendChild(modelEntity);
@@ -371,7 +372,10 @@ class WebARApp {
       // Get the Three.js mesh for bounding box calculation
       const mesh = modelEntity.getObject3D('mesh');
       if (mesh) {
-        // Compute bounding box in model's local coordinates (before any scene transforms)
+        // Ensure world matrices are up-to-date before computing bounding box
+        mesh.updateWorldMatrix(true, true);
+        
+        // Compute bounding box in world coordinates
         const boundingBox = new THREE.Box3().setFromObject(mesh);
         const modelSize = new THREE.Vector3();
         boundingBox.getSize(modelSize);
@@ -433,9 +437,9 @@ class WebARApp {
       
       // Check if we have a preserved anchor from model switching
       if (this.placedAnchorPosition) {
-        // Re-place model at the preserved anchor position
+        // Re-place model at the preserved anchor position (use force to bypass placement lock)
         this.logger.info('MODEL_SWITCH', 'Re-placing model at preserved anchor', this.placedAnchorPosition);
-        this.onPlaceModel(this.placedAnchorPosition);
+        this.onPlaceModel(this.placedAnchorPosition, { force: true });
         this.placedAnchorPosition = null;  // Clear after use
       } else if (this.surfaceDetected) {
         // Show tap instruction
@@ -448,8 +452,8 @@ class WebARApp {
         });
       }
       
-      // Apply gesture handler
-      this.gestureHandler.attachToModel(modelEntity);
+      // NOTE: Gesture handler is now attached in onPlaceModel() after placement
+      // Do NOT attach here - it would interfere with placement tap events
     });
     
     // Listen for model error (A-Frame failed to parse glTF)
@@ -464,47 +468,74 @@ class WebARApp {
     });
   }
 
-  async onPlaceModel(position) {
+  async onPlaceModel(position, { force = false } = {}) {
     this.logger.logModelPlacement(position);
     
-    // Only place model if one has been selected from gallery
-    if (this.currentModel) {
-      // Get floor offset calculated during model-loaded (Fix 5)
-      const floorOffset = parseFloat(this.currentModel.dataset.floorOffset) || 0;
+    // Fix 2: Placement lock - ignore taps if already placed (unless force=true for model switching)
+    if (this.modelIsPlaced && !force) {
+      this.logger.info('MODEL_PLACE', 'Ignoring tap - model already placed');
+      return;
+    }
+    
+    // Check if model exists
+    if (!this.currentModel) {
+      this.uiController.showToast('Please select a model from the gallery', 'info');
+      return;
+    }
+    
+    // Fix 3: Mesh-ready guard - prevent placement before model-loaded fires
+    const mesh = this.currentModel.getObject3D('mesh');
+    if (!mesh) {
+      this.logger.warning('MODEL_PLACE', 'Model mesh not ready yet, waiting for load');
+      this.uiController.showToast('Model still loading...', 'info');
+      return;
+    }
+    
+    // Get floor offset calculated during model-loaded
+    const floorOffset = parseFloat(this.currentModel.dataset.floorOffset) || 0;
+    
+    // Apply floor offset to Y position so model sits on the detected surface
+    const adjustedY = position.y + floorOffset;
+    const posString = `${position.x} ${adjustedY} ${position.z}`;
+    
+    this.currentModel.setAttribute('position', posString);
+    this.currentModel.setAttribute('visible', 'true');
+    this.modelIsPlaced = true;  // Mark as placed
+    
+    // Fix 4: Attach gesture handler AFTER placement (not during model-loaded)
+    this.gestureHandler.attachToModel(this.currentModel);
+    
+    // Use Three.js XR camera (not A-Frame entity) for accurate position
+    const cameraWorldPos = new THREE.Vector3();
+    if (this.arSession.scene.camera) {
+      this.arSession.scene.camera.getWorldPosition(cameraWorldPos);
+    }
+    
+    // Fix 5: Capture stable reference before RAF to prevent race condition if model cleared
+    const placedModel = this.currentModel;
+    
+    // Defer bounding box calculation to next frame after A-Frame applies attributes
+    requestAnimationFrame(() => {
+      // Guard against model being cleared before RAF executes
+      if (!this.currentModel || this.currentModel !== placedModel) return;
       
-      // Apply floor offset to Y position so model sits on the detected surface
-      const adjustedY = position.y + floorOffset;
-      const posString = `${position.x} ${adjustedY} ${position.z}`;
-      
-      this.currentModel.setAttribute('position', posString);
-      this.currentModel.setAttribute('visible', 'true');
-      this.modelIsPlaced = true;  // Mark as placed
-      
-      // Fix 6: Use Three.js XR camera (not A-Frame entity) for accurate position
-      const cameraWorldPos = new THREE.Vector3();
-      if (this.arSession.scene.camera) {
-        this.arSession.scene.camera.getWorldPosition(cameraWorldPos);
+      // Get model's current scale and compute final world-space bounds
+      const modelScale = placedModel.getAttribute('scale');
+      const rafMesh = placedModel.getObject3D('mesh');
+      let worldBounds = null;
+      if (rafMesh) {
+        const worldBox = new THREE.Box3().setFromObject(rafMesh);
+        const worldSize = new THREE.Vector3();
+        worldBox.getSize(worldSize);
+        worldBounds = {
+          min: { x: worldBox.min.x, y: worldBox.min.y, z: worldBox.min.z },
+          max: { x: worldBox.max.x, y: worldBox.max.y, z: worldBox.max.z },
+          size: { x: worldSize.x, y: worldSize.y, z: worldSize.z }
+        };
       }
       
-      // Fix 5: Defer bounding box calculation to next frame after A-Frame applies attributes
-      requestAnimationFrame(() => {
-        // Get model's current scale and compute final world-space bounds
-        const modelScale = this.currentModel.getAttribute('scale');
-        const mesh = this.currentModel.getObject3D('mesh');
-        let worldBounds = null;
-        if (mesh) {
-          const worldBox = new THREE.Box3().setFromObject(mesh);
-          const worldSize = new THREE.Vector3();
-          worldBox.getSize(worldSize);
-          worldBounds = {
-            min: { x: worldBox.min.x, y: worldBox.min.y, z: worldBox.min.z },
-            max: { x: worldBox.max.x, y: worldBox.max.y, z: worldBox.max.z },
-            size: { x: worldSize.x, y: worldSize.y, z: worldSize.z }
-          };
-        }
-        
-        // Detailed origin logging as requested
-        this.logger.info('COORDINATE_ORIGINS', 'Model placement coordinate details', {
+      // Detailed origin logging
+      this.logger.info('COORDINATE_ORIGINS', 'Model placement coordinate details', {
         localReferenceSpaceOrigin: {
           description: 'Origin of WebXR local reference space (session start position)',
           position: { x: 0, y: 0, z: 0 },
@@ -545,19 +576,15 @@ class WebARApp {
           units: 'meters'
         }
       });
-      });  // End of requestAnimationFrame
-      
-      this.logger.event('MODEL_PLACE', 'Model position updated with floor offset', {
-        hitPosition: position,
-        floorOffset: floorOffset,
-        finalPosition: { x: position.x, y: adjustedY, z: position.z }
-      });
-      
-      this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
-    } else {
-      // Prompt user to select a model from gallery
-      this.uiController.showToast('Please select a model from the gallery', 'info');
-    }
+    });  // End of requestAnimationFrame
+    
+    this.logger.event('MODEL_PLACE', 'Model position updated with floor offset', {
+      hitPosition: position,
+      floorOffset: floorOffset,
+      finalPosition: { x: position.x, y: adjustedY, z: position.z }
+    });
+    
+    this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
   }
 
   setupLayerControls(layers) {
@@ -606,12 +633,18 @@ class WebARApp {
   clearModel(isModelSwitch = false) {
     if (this.currentModel) {
       this.logger.event('USER_ACTION', isModelSwitch ? 'Model switch - clearing old model' : 'Clear model requested');
+      
+      // Fix 6: Detach gesture handlers to prevent memory leaks and stale listeners
+      this.gestureHandler?.detach();
+      
       this.currentModel.parentNode.removeChild(this.currentModel);
       this.currentModel = null;
       
-      // Reset placement state only if not switching models
+      // Always reset placement state (needed for placement lock to work on new models)
+      this.modelIsPlaced = false;
+      
+      // Only clear anchor position if not switching models (preserve for re-placement)
       if (!isModelSwitch) {
-        this.modelIsPlaced = false;
         this.placedAnchorPosition = null;
       }
       
