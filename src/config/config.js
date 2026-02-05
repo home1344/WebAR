@@ -17,9 +17,63 @@ export const CONFIG = {
   // Model configurations - URLs must match actual filenames in public/models/
   models: [
     {
+      id: 'house0',
+      name: 'House 0',
+      url: '/models/House 0.gltf',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
+      id: 'house1a',
+      name: 'House 1A',
+      url: '/models/House 1a.glb',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
+      id: 'house1b',
+      name: 'House 1B',
+      url: '/models/House 1b.glb',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
+      id: 'house1c',
+      name: 'House 1C',
+      url: '/models/House 1c.glb',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
+      id: 'house1d',
+      name: 'House 1D',
+      url: '/models/House 1d.glb',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
       id: 'house2',
       name: 'House 2',
-      url: '/models/house_2.glb',
+      url: '/models/house 2.glb',
+      thumbnail: null,
+      defaultScale: '1 1 1',
+      targetSizeMeters: 0.5,
+      layers: []
+    },
+    {
+      id: 'house3',
+      name: 'House 3',
+      url: '/models/house 3.glb',
       thumbnail: null,
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
