@@ -19,62 +19,17 @@ export const CONFIG = {
     {
       id: 'house0',
       name: 'House 0',
-      url: '/models/House 0.gltf',
-      thumbnail: '/thumbnails/house-0.png',
+      url: '/models/House_0.gltf',
+      thumbnail: '/assets/logo.svg', // Using logo as placeholder thumbnail
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []
     },
     {
-      id: 'house1a',
-      name: 'House 1A',
-      url: '/models/House 1a.glb',
-      thumbnail: '/thumbnails/house-1a.png',
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house1b',
-      name: 'House 1B',
-      url: '/models/House 1b.glb',
-      thumbnail: '/thumbnails/house-1b.png',
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house1c',
-      name: 'House 1C',
-      url: '/models/House 1c.glb',
-      thumbnail: '/thumbnails/house-1c.png',
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house1d',
-      name: 'House 1D',
-      url: '/models/House 1d.glb',
-      thumbnail: '/thumbnails/house-1d.png',
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house2',
-      name: 'House 2',
-      url: '/models/house 2.glb',
-      thumbnail: '/thumbnails/house-2.png',
-      defaultScale: '1 1 1',
-      targetSizeMeters: 0.5,
-      layers: []
-    },
-    {
-      id: 'house3',
-      name: 'House 3',
-      url: '/models/house 3.glb',
-      thumbnail: '/thumbnails/house-3.png',
+      id: 'housefull',
+      name: 'House Full',
+      url: '/models/House_full.gltf',
+      thumbnail: '/assets/logo.svg', // Using logo as placeholder thumbnail
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
       layers: []

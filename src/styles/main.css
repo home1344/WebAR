@@ -84,7 +84,39 @@ a-scene.hidden {
   }
 }
 
-/* Start AR Button */
+/* Tap Instruction (replaces Start AR button) */
+.tap-instruction {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-top: 2rem;
+  letter-spacing: 0.5px;
+  animation: fadeInOut 2s ease-in-out infinite;
+}
+
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Persistent AR Logo (top-right during AR session) */
+.ar-logo {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 48px;
+  height: 48px;
+  z-index: 100;
+  opacity: 0.9;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Start AR Button (kept for fallback/compatibility) */
 .start-ar-btn {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
   color: #667eea;
@@ -353,6 +385,15 @@ a-scene.hidden {
   height: 18px;
   stroke-width: 2px;
   opacity: 0.8;
+}
+
+/* Disabled state for UI buttons */
+.ui-btn:disabled,
+.ui-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
 }
 
 /* Gallery Button */
@@ -719,6 +760,14 @@ a-scene.hidden {
   color: white;
 }
 
+/* Disabled state for model cards (during loading) */
+.model-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none !important;
+}
+
 /* Surface Status Badge */
 .surface-status {
   position: absolute;
@@ -1013,6 +1062,37 @@ a-scene.hidden {
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.9);
   transition: all 0.3s ease;
+}
+
+/* Cancel Loading Button */
+.cancel-load-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  border-radius: 20px;
+  color: #667eea;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-load-btn:hover {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+}
+
+.cancel-load-btn:active {
+  transform: scale(0.95);
+}
+
+.cancel-load-btn svg {
+  stroke: currentColor;
 }
 
 /* Responsive Design */

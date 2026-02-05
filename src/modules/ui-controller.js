@@ -394,9 +394,10 @@ export class UIController {
   }
 
   /**
-   * Create loading indicator for model
+   * Create loading indicator for model with cancel button
+   * @param {Function} onCancel - Callback when cancel button is clicked
    */
-  createModelLoadingIndicator() {
+  createModelLoadingIndicator(onCancel = null) {
     const indicator = document.createElement('div');
     indicator.className = 'model-loading-indicator';
     indicator.innerHTML = `
@@ -406,7 +407,20 @@ export class UIController {
         <div class="progress-bar" style="width: 0%"></div>
       </div>
       <span class="progress-percent">0%</span>
+      <button class="cancel-load-btn" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        Cancel
+      </button>
     `;
+    
+    // Add cancel button handler if provided
+    const cancelBtn = indicator.querySelector('.cancel-load-btn');
+    if (cancelBtn && onCancel) {
+      cancelBtn.addEventListener('click', onCancel);
+    }
     
     this.uiOverlay.appendChild(indicator);
     return indicator;
@@ -438,5 +452,36 @@ export class UIController {
         indicator.remove();
       }, 300);
     }
+  }
+
+  /**
+   * Enable or disable UI controls during loading or other restricted states
+   * @param {boolean} enabled - Whether controls should be enabled
+   */
+  setControlsEnabled(enabled) {
+    const galleryBtn = document.getElementById('gallery-btn');
+    const reloadBtn = document.getElementById('reload-btn');
+    const logBtn = document.getElementById('log-btn');
+    const layerButtons = document.querySelectorAll('#layer-buttons button');
+
+    // Set disabled state for buttons
+    if (galleryBtn) {
+      galleryBtn.disabled = !enabled;
+      galleryBtn.classList.toggle('disabled', !enabled);
+    }
+    if (reloadBtn) {
+      reloadBtn.disabled = !enabled;
+      reloadBtn.classList.toggle('disabled', !enabled);
+    }
+    if (logBtn) {
+      logBtn.disabled = !enabled;
+      logBtn.classList.toggle('disabled', !enabled);
+    }
+    
+    // Disable layer buttons
+    layerButtons.forEach(btn => {
+      btn.disabled = !enabled;
+      btn.classList.toggle('disabled', !enabled);
+    });
   }
 }

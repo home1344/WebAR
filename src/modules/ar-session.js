@@ -20,6 +20,10 @@ export class ARSession {
     this.hitLogInterval = 2000; // Log hit status every 2 seconds max
     this.hitTestResultsCount = 0;
     
+    // State control flags for reticle and placement
+    this.reticleEnabled = true;   // Controls whether reticle can be shown
+    this.placementEnabled = true; // Controls whether taps trigger placement
+    
     // Callbacks
     this.onPlace = onPlaceCallback;
     this.onStart = onStartCallback;
@@ -259,6 +263,12 @@ export class ARSession {
     // Improvement 3 & 4: Check both marker and object3D exist
     if (!this.hitTestMarker?.object3D) return;
     
+    // If reticle is disabled, hide it and return
+    if (!this.reticleEnabled) {
+      this.hideHitMarker();
+      return;
+    }
+    
     const t = pose.transform;
     
     // Improvement 3: Reuse temp objects to avoid GC churn
@@ -282,6 +292,12 @@ export class ARSession {
   }
 
   onSelect(event) {
+    // If placement is disabled, ignore taps entirely
+    if (!this.placementEnabled) {
+      this.logger.info('USER_ACTION', 'Tap ignored - placement disabled');
+      return;
+    }
+    
     // Place model at hit location
     let placePosition = this.lastHitPosition;
     
@@ -417,5 +433,26 @@ export class ARSession {
       this.scene.renderer.setAnimationLoop(this.onXRFrame.bind(this));
       this.logger.info('AR_SESSION', 'AR session resumed');
     }
+  }
+
+  /**
+   * Enable or disable reticle visibility
+   * @param {boolean} enabled - Whether reticle should be shown when surface detected
+   */
+  setReticleEnabled(enabled) {
+    this.reticleEnabled = enabled;
+    if (!enabled) {
+      this.hideHitMarker();
+    }
+    this.logger.info('AR_SESSION', `Reticle ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Enable or disable placement (tap to place)
+   * @param {boolean} enabled - Whether taps should trigger placement
+   */
+  setPlacementEnabled(enabled) {
+    this.placementEnabled = enabled;
+    this.logger.info('AR_SESSION', `Placement ${enabled ? 'enabled' : 'disabled'}`);
   }
 }

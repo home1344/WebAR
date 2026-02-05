@@ -12,6 +12,22 @@ export class ModelLoader {
     this.currentLoadingModel = null;
     this.loadingProgress = 0;
     this.logger = getLogger();
+    
+    // AbortController for cancellable fetch
+    this.abortController = null;
+  }
+
+  /**
+   * Cancel current model load if in progress
+   */
+  cancelCurrentLoad() {
+    if (this.abortController) {
+      this.logger.info('MODEL_LOAD', 'Cancelling current model load', { 
+        url: this.currentLoadingModel 
+      });
+      this.abortController.abort();
+      this.abortController = null;
+    }
   }
 
   /**
@@ -31,10 +47,14 @@ export class ModelLoader {
     
     try {
       this.currentLoadingModel = url;
+      
+      // Create new AbortController for this request
+      this.abortController = new AbortController();
+      
       this.logger.logFetchAttempt(url, { method: 'GET' });
       
-      // Fetch model with progress tracking
-      const response = await this.fetchWithProgress(url, onProgress);
+      // Fetch model with progress tracking (pass abort signal)
+      const response = await this.fetchWithProgress(url, onProgress, this.abortController.signal);
       
       // Log response details
       this.logger.logFetchResponse(url, response, startTime);
@@ -97,9 +117,12 @@ export class ModelLoader {
 
   /**
    * Fetch with progress tracking
+   * @param {string} url - URL to fetch
+   * @param {Function} onProgress - Progress callback
+   * @param {AbortSignal} signal - Abort signal for cancellation
    */
-  async fetchWithProgress(url, onProgress) {
-    const response = await fetch(url);
+  async fetchWithProgress(url, onProgress, signal = null) {
+    const response = await fetch(url, { signal });
     
     if (!response.ok) {
       return response;

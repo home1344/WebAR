@@ -25,15 +25,12 @@
   </script>
 </head>
 <body>
-  <!-- Loading Screen -->
+  <!-- Loading Screen (tap anywhere to start) -->
   <div id="loading-screen" class="loading-screen visible">
     <div class="loading-content">
       <img id="logo" src="/assets/logo.svg" alt="Logo" class="logo">
       
-      <!-- Start AR Button (shown initially) -->
-      <button id="start-ar-btn" class="start-ar-btn">
-        <span class="btn-text">Start AR</span>
-      </button>
+      <!-- Tap instruction will be added dynamically by JS -->
       
       <!-- Loading State (hidden initially) -->
       <div id="loading-state" class="loading-state hidden">
@@ -78,7 +75,7 @@
            optionalFeatures: dom-overlay;
            overlayElement: #ui-overlay"
     vr-mode-ui="enabled: false"
-    renderer="antialias: true; colorManagement: true"
+    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
     loading-screen="enabled: false">
     
     <!-- Assets -->
@@ -146,14 +143,28 @@
     <!-- Model container -->
     <a-entity id="model-container"></a-entity>
 
-    <!-- Lighting -->
-    <a-light type="ambient" color="#ffffff" intensity="1.0"></a-light>
-    <a-light type="directional" position="1 2 1" color="#ffffff" intensity="1.0" cast-shadow></a-light>
-    <a-light type="hemisphere" color="#ffffff" groundColor="#bbbbbb" intensity="0.5"></a-light>
+    <!-- Enhanced Lighting for PBR Models -->
+    <!-- Ambient provides base illumination -->
+    <a-light type="ambient" color="#ffffff" intensity="0.4"></a-light>
+    
+    <!-- Main directional light (sun-like) -->
+    <a-light type="directional" position="1 2 1" color="#ffffff" intensity="2.0" cast-shadow="true"></a-light>
+    
+    <!-- Fill light from opposite side to reduce harsh shadows -->
+    <a-light type="directional" position="-1 1.5 -1" color="#ffffff" intensity="1.0"></a-light>
+    
+    <!-- Hemisphere light for natural sky/ground gradient -->
+    <a-light type="hemisphere" color="#87CEEB" groundColor="#8B7355" intensity="0.6"></a-light>
+    
+    <!-- Environment for PBR reflections (simple sky gradient) -->
+    <a-entity id="environment-light" light="type: probe; intensity: 1.0"></a-entity>
   </a-scene>
 
   <!-- UI Overlay -->
   <div id="ui-overlay" class="ui-overlay hidden">
+    <!-- Persistent Logo (top-right) -->
+    <img id="ar-logo" src="/assets/logo.svg" alt="Logo" class="ar-logo">
+    
     <!-- Gallery Button -->
     <button id="gallery-btn" class="ui-btn gallery-btn">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -192,8 +203,7 @@
 
     <!-- Controls Panel -->
     <div id="controls-panel" class="controls-panel">
-      <button id="clear-btn" class="ui-btn">Clear</button>
-      <button id="reload-btn" class="ui-btn">Reload</button>
+      <button id="reload-btn" class="ui-btn">Reposition</button>
       
       <!-- Layer toggles will be added dynamically -->
       <div id="layer-toggles" class="layer-toggles hidden">

@@ -286,7 +286,9 @@ export class GestureHandler {
         element.classList.contains('gallery-modal') ||
         element.classList.contains('controls-panel') ||
         element.classList.contains('layer-btn') ||
-        element.id === 'ui-overlay'
+        element.classList.contains('ar-logo') ||
+        element.id === 'ui-overlay' ||
+        element.id === 'ar-logo'
       )) {
         return true;
       }

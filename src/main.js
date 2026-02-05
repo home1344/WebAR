@@ -23,9 +23,31 @@ class WebARApp {
     this.isInitialized = false;
     this.logger = null;
     
-    // Track placed anchor position for model switching
-    this.placedAnchorPosition = null;
+    // Track placement state
     this.modelIsPlaced = false;
+    
+    // State machine flags
+    this.isModelLoading = false;   // True while a model is being fetched/parsed
+    this.isRepositioning = false;  // True when user pressed reload and is repositioning
+    
+    // Store current model config for repositioning
+    this.currentModelConfig = null;
+    
+    // Model entity cache: Map of modelId -> { entity, config, isReady }
+    // This caches parsed A-Frame entities to avoid re-parsing on model switch
+    this.modelEntityCache = new Map();
+    
+    // Track active model ID for cache management
+    this.activeModelId = null;
+    
+    // Track previous model state for cancel functionality
+    this.previousModelState = null;
+    
+    // Current loading indicator reference (for cancel)
+    this.currentLoadingIndicator = null;
+    
+    // Flag to track if loading was cancelled
+    this.loadingCancelled = false;
   }
 
   async init() {
@@ -66,8 +88,8 @@ class WebARApp {
       // Setup UI event handlers
       this.setupEventHandlers();
       
-      // Setup Start AR button
-      this.setupStartButton();
+      // Setup tap-anywhere-to-start (replaces Start AR button)
+      this.setupTapToStart();
       
       this.isInitialized = true;
       this.logger.success('APP_INIT', 'Initialization complete - waiting for user to start AR', {
@@ -85,19 +107,40 @@ class WebARApp {
     }
   }
 
-  setupStartButton() {
-    const startBtn = document.getElementById('start-ar-btn');
-    if (startBtn) {
-      startBtn.addEventListener('click', async () => {
-        this.logger.event('USER_ACTION', 'Start AR button clicked');
+  /**
+   * Setup tap-anywhere-to-start AR (replaces Start AR button)
+   * WebXR requires user gesture, so we use tap on loading screen
+   */
+  setupTapToStart() {
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      // Add tap instruction text
+      const tapInstruction = document.createElement('p');
+      tapInstruction.className = 'tap-instruction';
+      tapInstruction.textContent = 'Tap anywhere to start AR';
+      loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
+      
+      // One-time tap listener to start AR
+      const startOnTap = async (event) => {
+        // Prevent double-tap issues
+        event.preventDefault();
+        event.stopPropagation();
         
-        // Hide button and show loading state
-        this.uiController.hideStartButton();
+        this.logger.event('USER_ACTION', 'Tap to start AR');
+        
+        // Remove the listener immediately to prevent multiple triggers
+        loadingScreen.removeEventListener('click', startOnTap);
+        loadingScreen.removeEventListener('touchend', startOnTap);
+        
+        // Show loading state
         this.uiController.showLoadingState();
         
-        // Start AR session with user interaction
+        // Start AR session with user interaction (gesture requirement satisfied)
         await this.startARSession();
-      });
+      };
+      
+      loadingScreen.addEventListener('click', startOnTap);
+      loadingScreen.addEventListener('touchend', startOnTap);
     }
   }
 
@@ -140,18 +183,21 @@ class WebARApp {
   }
 
   setupEventHandlers() {
-    // Gallery button
+    // Gallery button - guarded by loading state
     document.getElementById('gallery-btn').addEventListener('click', () => {
+      if (this.isModelLoading) {
+        this.logger.info('USER_ACTION', 'Gallery ignored - model loading');
+        return;
+      }
       this.gallery.show();
     });
     
-    // Clear button
-    document.getElementById('clear-btn').addEventListener('click', () => {
-      this.clearModel();
-    });
-    
-    // Reload button
+    // Reload button - guarded by loading state
     document.getElementById('reload-btn').addEventListener('click', () => {
+      if (this.isModelLoading) {
+        this.logger.info('USER_ACTION', 'Reload ignored - model loading');
+        return;
+      }
       this.reloadModel();
     });
   }
@@ -267,6 +313,12 @@ class WebARApp {
   }
 
   async onModelSelect(modelConfig) {
+    // Ignore if already loading
+    if (this.isModelLoading) {
+      this.logger.info('USER_ACTION', 'Model selection ignored - already loading');
+      return;
+    }
+    
     const startTime = Date.now();
     this.logger.event('USER_ACTION', 'Model selected from gallery', { 
       modelName: modelConfig.name,
@@ -274,33 +326,90 @@ class WebARApp {
       url: modelConfig.url,
       timestamp: startTime
     });
-    this.logger.logModelLoad(modelConfig.name, modelConfig.url);
     this.gallery.hide();
     
-    // Store current anchor position before clearing (for model switching)
-    if (this.currentModel && this.modelIsPlaced) {
-      const pos = this.currentModel.getAttribute('position');
-      if (pos) {
-        this.placedAnchorPosition = { x: pos.x, y: pos.y, z: pos.z };
-        this.logger.info('MODEL_SWITCH', 'Preserving anchor position for new model', this.placedAnchorPosition);
+    // Check if this model is already cached (parsed and ready)
+    const cachedModel = this.modelEntityCache.get(modelConfig.id);
+    
+    if (cachedModel && cachedModel.isReady) {
+      // INSTANT SWITCH: Model is already parsed, just swap visibility
+      this.logger.info('MODEL_CACHE', 'Using cached model entity - instant switch', { 
+        modelId: modelConfig.id 
+      });
+      
+      // Store previous state before switching (for potential future use)
+      this.savePreviousModelState();
+      
+      // Hide current model (don't remove - it's cached)
+      this.hideCurrentModel();
+      
+      // Activate cached model
+      this.activateCachedModel(modelConfig.id, cachedModel);
+      
+      // Show success immediately
+      this.uiController.showToast(`${modelConfig.name} ready`, 'success', { title: 'Model Ready' });
+      
+      // Enable placement for reticle tap
+      this.arSession.setReticleEnabled(true);
+      this.arSession.setPlacementEnabled(true);
+      
+      // Show appropriate instruction
+      if (this.surfaceDetected) {
+        this.uiController.showSurfaceDetectedInstructions();
+      } else {
+        this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+          duration: 0,
+          icon: 'scan',
+          state: 'scanning'
+        });
       }
+      
+      return;
     }
     
-    if (this.currentModel) {
-      this.clearModel(true);  // Pass true to indicate it's a model switch
-    }
+    // NOT CACHED: Need to load and parse model
+    this.logger.logModelLoad(modelConfig.name, modelConfig.url);
     
-    // Show loading instructions with model name
+    // Store previous model state BEFORE hiding (for cancel restore)
+    this.savePreviousModelState();
+    
+    // Hide current model if exists (don't remove - keep in cache)
+    this.hideCurrentModel();
+    
+    // Reset cancel flag
+    this.loadingCancelled = false;
+    
+    // Lock UI during loading
+    this.isModelLoading = true;
+    this.uiController.setControlsEnabled(false);
+    this.gallery.setEnabled(false);
+    
+    // Disable placement during loading
+    this.arSession.setPlacementEnabled(false);
+    
+    // Show loading instructions
     this.uiController.showLoadingInstructions(modelConfig.name);
     
     try {
       const modelUrl = modelConfig.url;
-      await this.loadAndPlaceModel(modelUrl, modelConfig);
+      await this.loadAndCacheModel(modelUrl, modelConfig);
+      
+      // Check if loading was cancelled
+      if (this.loadingCancelled) {
+        this.logger.info('MODEL_LOAD', 'Loading completed but was cancelled, ignoring result');
+        return;
+      }
       
       const loadTime = Date.now() - startTime;
-      this.logger.logModelLoaded(modelConfig.name, { loadTime });
+      this.logger.logModelLoaded(modelConfig.name, { loadTime, cached: false });
       
     } catch (error) {
+      // Check if this was a cancel (not a real error)
+      if (this.loadingCancelled) {
+        this.logger.info('MODEL_LOAD', 'Loading cancelled by user');
+        return;
+      }
+      
       this.logger.logModelError(modelConfig.name, error, {
         url: modelConfig.url,
         httpStatus: error.message.match(/HTTP (\d+)/)?.[1],
@@ -308,15 +417,186 @@ class WebARApp {
       });
       this.uiController.showToast('Failed to load model', 'error', { title: 'Error' });
       this.uiController.hideInstructions();
+      
+      // Re-enable reticle/placement on error
+      this.arSession.setReticleEnabled(true);
+      this.arSession.setPlacementEnabled(true);
+    } finally {
+      if (!this.loadingCancelled) {
+        this.isModelLoading = false;
+        this.uiController.setControlsEnabled(true);
+        this.gallery.setEnabled(true);
+      }
     }
   }
 
-  async loadAndPlaceModel(url, config) {
+  /**
+   * Save current model state for potential restore on cancel
+   */
+  savePreviousModelState() {
+    if (this.currentModel && this.activeModelId) {
+      this.previousModelState = {
+        modelId: this.activeModelId,
+        config: this.currentModelConfig,
+        wasPlaced: this.modelIsPlaced,
+        position: this.currentModel.getAttribute('position'),
+        scale: this.currentModel.getAttribute('scale'),
+        rotation: this.currentModel.getAttribute('rotation')
+      };
+      this.logger.info('MODEL_STATE', 'Saved previous model state', { 
+        modelId: this.activeModelId 
+      });
+    } else {
+      this.previousModelState = null;
+    }
+  }
+
+  /**
+   * Cancel current model loading and restore previous state
+   */
+  cancelModelLoading() {
+    if (!this.isModelLoading) {
+      this.logger.info('USER_ACTION', 'Cancel ignored - not loading');
+      return;
+    }
+    
+    this.logger.event('USER_ACTION', 'Model loading cancelled by user');
+    
+    // Set cancel flag
+    this.loadingCancelled = true;
+    
+    // Remove loading indicator
+    if (this.currentLoadingIndicator) {
+      this.uiController.removeModelLoadingIndicator(this.currentLoadingIndicator);
+      this.currentLoadingIndicator = null;
+    }
+    
+    // Cancel the model loader's current fetch
+    this.modelLoader.cancelCurrentLoad?.();
+    
+    // Remove the partially loaded entity if it exists
+    if (this.currentModel && !this.modelEntityCache.get(this.activeModelId)?.isReady) {
+      // Entity was created but not fully loaded - remove it
+      this.currentModel.parentNode?.removeChild(this.currentModel);
+      this.modelEntityCache.delete(this.activeModelId);
+    }
+    
+    // Restore previous model state
+    if (this.previousModelState) {
+      const cached = this.modelEntityCache.get(this.previousModelState.modelId);
+      if (cached && cached.isReady) {
+        this.logger.info('MODEL_STATE', 'Restoring previous model', { 
+          modelId: this.previousModelState.modelId 
+        });
+        
+        // Activate the previous model
+        this.currentModel = cached.entity;
+        this.currentModelConfig = this.previousModelState.config;
+        this.activeModelId = this.previousModelState.modelId;
+        
+        // Restore position/scale/rotation if it was placed
+        if (this.previousModelState.wasPlaced) {
+          this.currentModel.setAttribute('position', this.previousModelState.position);
+          this.currentModel.setAttribute('scale', this.previousModelState.scale);
+          this.currentModel.setAttribute('rotation', this.previousModelState.rotation);
+          this.currentModel.setAttribute('visible', 'true');
+          this.modelIsPlaced = true;
+          
+          // Re-attach gesture handler
+          this.gestureHandler.attachToModel(this.currentModel);
+          
+          // Setup layer controls if needed
+          if (this.previousModelState.config?.layers?.length > 0) {
+            this.setupLayerControls(this.previousModelState.config.layers);
+          }
+        }
+        
+        this.uiController.showToast('Loading cancelled', 'info');
+      }
+    } else {
+      // No previous model - just reset to initial state
+      this.currentModel = null;
+      this.activeModelId = null;
+      this.uiController.showToast('Loading cancelled', 'info');
+    }
+    
+    // Reset loading state
+    this.isModelLoading = false;
+    this.uiController.setControlsEnabled(true);
+    this.gallery.setEnabled(true);
+    this.uiController.hideInstructions();
+    
+    // Re-enable reticle/placement
+    this.arSession.setReticleEnabled(true);
+    this.arSession.setPlacementEnabled(true);
+    
+    // Show appropriate instruction
+    if (this.surfaceDetected) {
+      this.uiController.showSurfaceDetectedInstructions();
+    }
+    
+    // Clear previous state
+    this.previousModelState = null;
+  }
+
+  /**
+   * Hide current model without removing it (keeps it in cache)
+   */
+  hideCurrentModel() {
+    if (this.currentModel) {
+      // Detach gesture handler from current model
+      this.gestureHandler?.detach();
+      
+      // Hide the model but keep it in DOM (cached)
+      this.currentModel.setAttribute('visible', 'false');
+      
+      // Reset placement state
+      this.modelIsPlaced = false;
+      
+      // Hide layer controls (will be re-shown for new model if it has layers)
+      document.getElementById('layer-toggles').classList.add('hidden');
+      
+      this.logger.info('MODEL_CACHE', 'Current model hidden (cached)', { 
+        modelId: this.activeModelId 
+      });
+    }
+  }
+
+  /**
+   * Activate a cached model entity
+   */
+  activateCachedModel(modelId, cachedModel) {
+    this.currentModel = cachedModel.entity;
+    this.currentModelConfig = cachedModel.config;
+    this.activeModelId = modelId;
+    this.modelIsPlaced = false;
+    
+    // Model stays hidden until user taps reticle to place
+    this.currentModel.setAttribute('visible', 'false');
+    
+    // Setup layer controls if model has layers
+    if (cachedModel.config.layers && cachedModel.config.layers.length > 0) {
+      this.setupLayerControls(cachedModel.config.layers);
+    }
+    
+    this.logger.info('MODEL_CACHE', 'Cached model activated', { modelId });
+  }
+
+  /**
+   * Load a model and cache the parsed entity for instant switching
+   * @param {string} url - Model URL
+   * @param {object} config - Model configuration
+   */
+  async loadAndCacheModel(url, config) {
     const container = document.getElementById('model-container');
     const startTime = Date.now();
     
-    // Show loading indicator
-    const loadingIndicator = this.uiController.createModelLoadingIndicator();
+    // Show loading indicator with cancel button
+    const loadingIndicator = this.uiController.createModelLoadingIndicator(
+      () => this.cancelModelLoading()
+    );
+    this.currentLoadingIndicator = loadingIndicator;
+    
     this.logger.info('MODEL_LOAD', 'Starting model fetch', { 
       url,
       fullUrl: new URL(url, window.location.origin).href,
@@ -328,7 +608,7 @@ class WebARApp {
     let modelUrl = url;
     
     try {
-      // Use ModelLoader to fetch with progress tracking
+      // Use ModelLoader to fetch with progress tracking (downloads are cached)
       modelUrl = await this.modelLoader.loadModel(url, (progress, received, total) => {
         this.uiController.updateModelLoadingProgress(loadingIndicator, progress);
         this.logger.info('MODEL_LOAD', `Loading progress: ${progress}%`, { received, total });
@@ -343,22 +623,32 @@ class WebARApp {
       throw fetchError;
     }
     
-    // Create model entity with the loaded object URL
+    // Create model entity with unique ID based on model config ID
     const modelEntity = document.createElement('a-entity');
-    modelEntity.setAttribute('id', 'current-model');
+    modelEntity.setAttribute('id', `model-${config.id}`);
     modelEntity.setAttribute('gltf-model', modelUrl);
     modelEntity.setAttribute('scale', config.defaultScale || '1 1 1');
     
-    // IMPORTANT: Hide model until user taps to place it
+    // Hide model until user taps to place it
     modelEntity.setAttribute('visible', 'false');
     
-    // Position at origin initially (will be updated on placement)
-    // DO NOT use off-screen Y like -1000 as it pollutes bounding box calculation
+    // Position at origin initially
     modelEntity.setAttribute('position', '0 0 0');
-    this.logger.info('MODEL_LOAD', 'Model created but hidden until placement');
+    this.logger.info('MODEL_LOAD', 'Model entity created, awaiting A-Frame parse');
     
     container.appendChild(modelEntity);
+    
+    // Set as current model and track active ID
     this.currentModel = modelEntity;
+    this.currentModelConfig = config;
+    this.activeModelId = config.id;
+    
+    // Add to cache as "loading" (not ready yet)
+    this.modelEntityCache.set(config.id, {
+      entity: modelEntity,
+      config: config,
+      isReady: false
+    });
     
     // Setup layer controls if model has layers
     if (config.layers && config.layers.length > 0) {
@@ -382,18 +672,16 @@ class WebARApp {
         const modelCenter = new THREE.Vector3();
         boundingBox.getCenter(modelCenter);
         
-        // Log raw model dimensions (in model's native units)
+        // Log raw model dimensions
         this.logger.info('MODEL_BOUNDS', 'Raw model bounding box (native units)', {
           min: { x: boundingBox.min.x, y: boundingBox.min.y, z: boundingBox.min.z },
           max: { x: boundingBox.max.x, y: boundingBox.max.y, z: boundingBox.max.z },
           size: { x: modelSize.x, y: modelSize.y, z: modelSize.z },
-          center: { x: modelCenter.x, y: modelCenter.y, z: modelCenter.z },
-          note: 'If size >> 1, model was likely authored in cm/mm. If size << 1, model may be too small.'
+          center: { x: modelCenter.x, y: modelCenter.y, z: modelCenter.z }
         });
         
-        // Fix 4: Normalize model scale to real-world meters
-        // Target: largest dimension should be approximately targetSizeMeters
-        const targetSizeMeters = config.targetSizeMeters || 0.5; // Default 0.5m (50cm) for preview
+        // Normalize model scale to real-world meters
+        const targetSizeMeters = config.targetSizeMeters || 0.5;
         const largestDimension = Math.max(modelSize.x, modelSize.y, modelSize.z);
         
         if (largestDimension > 0) {
@@ -402,32 +690,44 @@ class WebARApp {
           // Apply uniform scale
           modelEntity.setAttribute('scale', `${scaleFactor} ${scaleFactor} ${scaleFactor}`);
           
-          this.logger.info('MODEL_SCALE', 'Model scale normalized to real-world meters', {
+          // Force Three.js to update matrices after scale change
+          modelEntity.object3D.updateMatrixWorld(true);
+          
+          // Recompute bounding box AFTER scale is applied
+          const scaledBoundingBox = new THREE.Box3().setFromObject(mesh);
+          const scaledSize = new THREE.Vector3();
+          scaledBoundingBox.getSize(scaledSize);
+          
+          this.logger.info('MODEL_SCALE', 'Model scale normalized', {
             rawLargestDimension: largestDimension,
             targetSizeMeters: targetSizeMeters,
             appliedScaleFactor: scaleFactor,
-            finalSizeMeters: {
-              x: modelSize.x * scaleFactor,
-              y: modelSize.y * scaleFactor,
-              z: modelSize.z * scaleFactor
-            }
+            finalSizeMeters: { x: scaledSize.x, y: scaledSize.y, z: scaledSize.z }
           });
           
-          // Fix 5: Adjust model Y position so its bottom sits on the floor plane
-          // The floor plane is at the hit-test Y position
-          // We need to offset the model up by (boundingBox.min.y * scaleFactor) to sit on floor
-          const floorOffset = -boundingBox.min.y * scaleFactor;
+          // Calculate floor offset from SCALED bounding box
+          const floorOffset = -scaledBoundingBox.min.y;
+          const maxReasonableOffset = 5.0;
+          const clampedFloorOffset = Math.min(Math.abs(floorOffset), maxReasonableOffset) * Math.sign(floorOffset);
           
-          // Store floor offset for use when placing model
-          modelEntity.dataset.floorOffset = floorOffset;
+          // Store floor offset for placement
+          modelEntity.dataset.floorOffset = clampedFloorOffset;
           
           this.logger.info('MODEL_PIVOT', 'Floor offset calculated', {
-            boundingBoxMinY: boundingBox.min.y,
-            scaleFactor: scaleFactor,
-            floorOffsetMeters: floorOffset,
-            note: 'Model will be raised by this amount to sit on detected surface'
+            scaledBoundingBoxMinY: scaledBoundingBox.min.y,
+            clampedFloorOffset: clampedFloorOffset
           });
         }
+      }
+      
+      // IMPORTANT: Mark entity as ready in cache
+      const cachedEntry = this.modelEntityCache.get(config.id);
+      if (cachedEntry) {
+        cachedEntry.isReady = true;
+        this.logger.info('MODEL_CACHE', 'Model cached and ready for instant switching', { 
+          modelId: config.id,
+          cacheSize: this.modelEntityCache.size
+        });
       }
       
       this.logger.logModelLoaded(config.name || 'Unknown');
@@ -435,14 +735,12 @@ class WebARApp {
       // Show success toast
       this.uiController.showToast(`${config.name} loaded successfully`, 'success', { title: 'Model Ready' });
       
-      // Check if we have a preserved anchor from model switching
-      if (this.placedAnchorPosition) {
-        // Re-place model at the preserved anchor position (use force to bypass placement lock)
-        this.logger.info('MODEL_SWITCH', 'Re-placing model at preserved anchor', this.placedAnchorPosition);
-        this.onPlaceModel(this.placedAnchorPosition, { force: true });
-        this.placedAnchorPosition = null;  // Clear after use
-      } else if (this.surfaceDetected) {
-        // Show tap instruction
+      // Enable reticle and placement now that model is ready
+      this.arSession.setReticleEnabled(true);
+      this.arSession.setPlacementEnabled(true);
+      
+      // Show appropriate instruction based on surface detection
+      if (this.surfaceDetected) {
         this.uiController.showSurfaceDetectedInstructions();
       } else {
         this.uiController.showInstructions('Move your phone slowly to scan the floor', {
@@ -451,31 +749,29 @@ class WebARApp {
           state: 'scanning'
         });
       }
-      
-      // NOTE: Gesture handler is now attached in onPlaceModel() after placement
-      // Do NOT attach here - it would interfere with placement tap events
     });
     
-    // Listen for model error (A-Frame failed to parse glTF)
+    // Listen for model error
     modelEntity.addEventListener('model-error', (e) => {
       this.uiController.removeModelLoadingIndicator(loadingIndicator);
       this.logger.error('MODEL_LOAD', 'A-Frame model parsing error', { 
         error: e.detail?.message || e.detail || 'Unknown error',
         url: url
       });
+      
+      // Remove failed model from cache
+      this.modelEntityCache.delete(config.id);
+      
       this.uiController.showToast('Model file may be corrupted', 'error', { title: 'Loading Error' });
       this.uiController.hideInstructions();
     });
   }
 
-  async onPlaceModel(position, { force = false } = {}) {
+  async onPlaceModel(position) {
     this.logger.logModelPlacement(position);
     
-    // Fix 2: Placement lock - ignore taps if already placed (unless force=true for model switching)
-    if (this.modelIsPlaced && !force) {
-      this.logger.info('MODEL_PLACE', 'Ignoring tap - model already placed');
-      return;
-    }
+    // Placement is now controlled by ARSession.placementEnabled
+    // This function is only called when placement is allowed
     
     // Check if model exists
     if (!this.currentModel) {
@@ -483,7 +779,7 @@ class WebARApp {
       return;
     }
     
-    // Fix 3: Mesh-ready guard - prevent placement before model-loaded fires
+    // Mesh-ready guard - prevent placement before model-loaded fires
     const mesh = this.currentModel.getObject3D('mesh');
     if (!mesh) {
       this.logger.warning('MODEL_PLACE', 'Model mesh not ready yet, waiting for load');
@@ -502,7 +798,18 @@ class WebARApp {
     this.currentModel.setAttribute('visible', 'true');
     this.modelIsPlaced = true;  // Mark as placed
     
-    // Fix 4: Attach gesture handler AFTER placement (not during model-loaded)
+    // CRITICAL: Disable reticle and placement after model is placed
+    // This prevents multiple placements and hides the reticle
+    this.arSession.setReticleEnabled(false);
+    this.arSession.setPlacementEnabled(false);
+    
+    // Exit repositioning mode if we were in it
+    if (this.isRepositioning) {
+      this.isRepositioning = false;
+      this.logger.info('MODEL_PLACE', 'Exiting repositioning mode');
+    }
+    
+    // Attach gesture handler AFTER placement (not during model-loaded)
     this.gestureHandler.attachToModel(this.currentModel);
     
     // Use Three.js XR camera (not A-Frame entity) for accurate position
@@ -630,32 +937,49 @@ class WebARApp {
     });
   }
 
-  clearModel(isModelSwitch = false) {
+  /**
+   * Clear/hide current model
+   * With caching: model is hidden but kept in DOM for instant switching
+   * @param {boolean} isModelSwitch - True if clearing for a model switch (suppress UI feedback)
+   * @param {boolean} removeFromCache - True to fully remove from cache and DOM (memory cleanup)
+   */
+  clearModel(isModelSwitch = false, removeFromCache = false) {
     if (this.currentModel) {
-      this.logger.event('USER_ACTION', isModelSwitch ? 'Model switch - clearing old model' : 'Clear model requested');
+      this.logger.event('USER_ACTION', isModelSwitch ? 'Model switch - hiding old model' : 'Clear model requested');
       
-      // Fix 6: Detach gesture handlers to prevent memory leaks and stale listeners
+      // Detach gesture handlers
       this.gestureHandler?.detach();
       
-      this.currentModel.parentNode.removeChild(this.currentModel);
-      this.currentModel = null;
-      
-      // Always reset placement state (needed for placement lock to work on new models)
-      this.modelIsPlaced = false;
-      
-      // Only clear anchor position if not switching models (preserve for re-placement)
-      if (!isModelSwitch) {
-        this.placedAnchorPosition = null;
+      if (removeFromCache) {
+        // Full removal: remove from DOM and cache
+        this.currentModel.parentNode.removeChild(this.currentModel);
+        if (this.activeModelId) {
+          this.modelEntityCache.delete(this.activeModelId);
+          this.logger.info('MODEL_CACHE', 'Model removed from cache', { modelId: this.activeModelId });
+        }
+      } else {
+        // Caching: just hide the model (keep in DOM for instant switching)
+        this.currentModel.setAttribute('visible', 'false');
       }
+      
+      this.currentModel = null;
+      this.activeModelId = null;
+      
+      // Always reset placement state
+      this.modelIsPlaced = false;
       
       // Hide layer controls
       document.getElementById('layer-toggles').classList.add('hidden');
       
-      this.logger.info('MODEL', 'Model cleared');
+      this.logger.info('MODEL', removeFromCache ? 'Model removed' : 'Model hidden (cached)');
       
       // Only show toast and reset UI if not switching models
       if (!isModelSwitch) {
         this.uiController.showToast('Model cleared', 'info');
+        
+        // Re-enable reticle and placement
+        this.arSession.setReticleEnabled(true);
+        this.arSession.setPlacementEnabled(true);
         
         // Reset to scanning state
         if (this.surfaceDetected) {
@@ -671,30 +995,56 @@ class WebARApp {
     }
   }
 
+  /**
+   * Reposition mode: Hide model, show reticle, allow user to tap to re-place
+   * The same model will appear at the new reticle position when tapped
+   */
   reloadModel() {
-    if (this.currentModel) {
-      this.logger.event('USER_ACTION', 'Reload model requested');
-      const modelUrl = this.currentModel.getAttribute('gltf-model');
-      const position = this.currentModel.getAttribute('position');
-      const scale = this.currentModel.getAttribute('scale');
-      
-      // Clear and reload
-      this.clearModel();
-      
-      // Recreate model
-      const modelEntity = document.createElement('a-entity');
-      modelEntity.setAttribute('id', 'current-model');
-      modelEntity.setAttribute('gltf-model', modelUrl);
-      modelEntity.setAttribute('position', position);
-      modelEntity.setAttribute('scale', scale);
-      
-      document.getElementById('model-container').appendChild(modelEntity);
-      this.currentModel = modelEntity;
-      
-      this.gestureHandler.attachToModel(modelEntity);
-      this.logger.info('MODEL', 'Model reloaded', { url: modelUrl });
-      this.uiController.showToast('Model reloaded', 'success');
+    // Guard: only allow if we have a placed model and not already loading/repositioning
+    if (!this.currentModel || !this.modelIsPlaced) {
+      this.logger.info('USER_ACTION', 'Reload ignored - no placed model');
+      return;
     }
+    
+    if (this.isModelLoading) {
+      this.logger.info('USER_ACTION', 'Reload ignored - model loading');
+      return;
+    }
+    
+    if (this.isRepositioning) {
+      this.logger.info('USER_ACTION', 'Reload ignored - already repositioning');
+      return;
+    }
+    
+    this.logger.event('USER_ACTION', 'Entering reposition mode');
+    
+    // Enter repositioning mode
+    this.isRepositioning = true;
+    this.modelIsPlaced = false;
+    
+    // Detach gesture handler so hidden model doesn't eat touch events
+    this.gestureHandler?.detach();
+    
+    // Hide the model (but keep it in DOM for re-placement)
+    this.currentModel.setAttribute('visible', 'false');
+    
+    // Enable reticle and placement so user can tap to re-place
+    this.arSession.setReticleEnabled(true);
+    this.arSession.setPlacementEnabled(true);
+    
+    // Update instructions
+    if (this.surfaceDetected) {
+      this.uiController.showSurfaceDetectedInstructions();
+    } else {
+      this.uiController.showInstructions('Move your phone slowly to scan the floor', {
+        duration: 0,
+        icon: 'scan',
+        state: 'scanning'
+      });
+    }
+    
+    this.uiController.showToast('Tap the reticle to reposition', 'info');
+    this.logger.info('MODEL', 'Model hidden - awaiting reposition tap');
   }
 
   /**

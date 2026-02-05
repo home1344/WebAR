@@ -7,6 +7,7 @@ export class Gallery {
   constructor(models, onSelectCallback) {
     this.models = models;
     this.onSelect = onSelectCallback;
+    this.enabled = true; // Controls whether gallery selection is allowed
     
     this.galleryModal = document.getElementById('gallery-modal');
     this.modelGrid = document.getElementById('model-grid');
@@ -123,6 +124,12 @@ export class Gallery {
    * Select a model
    */
   selectModel(model) {
+    // If gallery is disabled (e.g., during loading), ignore selection
+    if (!this.enabled) {
+      console.log('Gallery: Selection ignored - gallery disabled');
+      return;
+    }
+    
     console.log('Gallery: Model selected', model.name);
     
     // Mark as selected
@@ -194,5 +201,21 @@ export class Gallery {
     cards?.forEach(card => {
       card.classList.remove('selected');
     });
+  }
+
+  /**
+   * Enable or disable gallery selection
+   * @param {boolean} enabled - Whether gallery selection should be allowed
+   */
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    
+    // Visually indicate disabled state on model cards
+    const cards = this.modelGrid?.querySelectorAll('.model-card');
+    cards?.forEach(card => {
+      card.classList.toggle('disabled', !enabled);
+    });
+    
+    console.log(`Gallery: ${enabled ? 'enabled' : 'disabled'}`);
   }
 }
