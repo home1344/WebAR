@@ -73,7 +73,7 @@ export const CONFIG = {
   // Performance settings
   performance: {
     // Max file size in MB
-    maxModelSize: 50,
+    maxModelSize: 100,
     // Recommended file size in MB
     recommendedModelSize: 20,
     // Texture resolution limit

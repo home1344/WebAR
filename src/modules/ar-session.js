@@ -29,6 +29,10 @@ export class ARSession {
     this.onSelect = this.onSelect.bind(this);
     this.onSessionEnd = this.onSessionEnd.bind(this);
     
+    // Improvement 3: Reusable objects to avoid GC churn
+    this._tmpPos = new THREE.Vector3();
+    this._tmpQuat = new THREE.Quaternion();
+    
     this.init();
   }
 
@@ -47,6 +51,17 @@ export class ARSession {
     if (this.session) {
       this.logger.warning('AR_SESSION', 'AR session already active');
       return;
+    }
+    
+    // Improvement 1: Ensure A-Frame is fully loaded before accessing renderer
+    if (!this.scene.hasLoaded) {
+      this.logger.info('AR_SESSION', 'Waiting for A-Frame scene to load...');
+      await new Promise((resolve) => this.scene.addEventListener('loaded', resolve, { once: true }));
+    }
+    
+    // Improvement 1: Verify renderer exists
+    if (!this.scene.renderer) {
+      throw new Error('A-Frame renderer not available (scene.renderer is null)');
     }
     
     try {
@@ -108,13 +123,16 @@ export class ARSession {
         throw error;
       }
       
-      // Start render loop
-      this.scene.renderer.xr.enabled = true;
-      this.scene.renderer.xr.setReferenceSpaceType('local'); // Fix 1: Force renderer to use 'local' space
-      this.scene.renderer.xr.setSession(this.session);
+      // Improvement 1: Use local variable for cleaner code
+      const renderer = this.scene.renderer;
+      renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType('local');
       
-      // Fix 2: Use renderer's animation loop instead of manual requestAnimationFrame
-      this.scene.renderer.setAnimationLoop(this.onXRFrame.bind(this));
+      // Improvement 1: setSession may return a Promise in some Three.js builds
+      await renderer.xr.setSession(this.session);
+      
+      // Start render loop
+      renderer.setAnimationLoop(this.onXRFrame.bind(this));
       
       // Setup event listeners
       this.session.addEventListener('select', this.onSelect);
@@ -238,30 +256,22 @@ export class ARSession {
   }
 
   updateHitMarker(pose) {
-    if (!this.hitTestMarker) return;
+    // Improvement 3 & 4: Check both marker and object3D exist
+    if (!this.hitTestMarker?.object3D) return;
     
-    const transform = pose.transform;
+    const t = pose.transform;
     
-    // Use WebXR coordinates directly (consistent with lastHitPosition)
-    const position = {
-      x: transform.position.x,
-      y: transform.position.y,
-      z: transform.position.z
-    };
+    // Improvement 3: Reuse temp objects to avoid GC churn
+    this._tmpPos.set(t.position.x, t.position.y, t.position.z);
+    this.hitTestMarker.object3D.position.copy(this._tmpPos);
     
-    // Update marker position in world space
-    this.hitTestMarker.object3D.position.set(position.x, position.y, position.z);
     this.hitTestMarker.setAttribute('visible', true);
     
     // Update rotation from hit pose quaternion
-    const orientation = transform.orientation;
-    if (orientation) {
-      this.hitTestMarker.object3D.quaternion.set(
-        orientation.x,
-        orientation.y,
-        orientation.z,
-        orientation.w
-      );
+    const o = t.orientation;
+    if (o) {
+      this._tmpQuat.set(o.x, o.y, o.z, o.w);
+      this.hitTestMarker.object3D.quaternion.copy(this._tmpQuat);
     }
   }
 
@@ -285,6 +295,8 @@ export class ARSession {
   }
 
   updateHitTestStatus(active) {
+    // Improvement 4: Defensive null checks throughout
+    
     // Update debug status (if visible)
     const statusEl = document.getElementById('hit-test-status');
     if (statusEl) {
@@ -294,33 +306,30 @@ export class ARSession {
     
     // Update surface status badge (always visible)
     const surfaceStatus = document.getElementById('surface-status');
-    if (surfaceStatus) {
-      const indicator = surfaceStatus.querySelector('.status-indicator');
-      const statusText = surfaceStatus.querySelector('.status-text');
-      
-      if (active) {
-        surfaceStatus.classList.add('detected');
-        if (indicator) {
-          indicator.classList.remove('searching');
-          indicator.classList.add('detected');
-        }
-        if (statusText) {
-          statusText.textContent = 'Surface detected';
-        }
-      } else {
-        surfaceStatus.classList.remove('detected');
-        if (indicator) {
-          indicator.classList.remove('detected');
-          indicator.classList.add('searching');
-        }
-        if (statusText) {
-          statusText.textContent = 'Searching for surface...';
-        }
+    if (!surfaceStatus) return;
+    
+    const indicator = surfaceStatus.querySelector('.status-indicator');
+    const statusText = surfaceStatus.querySelector('.status-text');
+    
+    if (active) {
+      surfaceStatus.classList.add('detected');
+      if (indicator) {
+        indicator.classList.remove('searching');
+        indicator.classList.add('detected');
+      }
+      if (statusText) {
+        statusText.textContent = 'Surface detected';
+      }
+    } else {
+      surfaceStatus.classList.remove('detected');
+      if (indicator) {
+        indicator.classList.remove('detected');
+        indicator.classList.add('searching');
+      }
+      if (statusText) {
+        statusText.textContent = 'Searching for surface...';
       }
     }
-    
-    // Update instructions only on first detection (handled by UIController)
-    // The instruction update is now managed by the main app to avoid conflicts
   }
 
   updateDebugInfo(time) {
@@ -348,17 +357,36 @@ export class ARSession {
   onSessionEnd() {
     this.logger.info('AR_SESSION', 'AR session ended');
     
-    // Fix 4: Stop the animation loop when session ends
-    if (this.scene && this.scene.renderer) {
+    // Improvement 2: Remove session listeners (prevents memory leaks on restart)
+    try {
+      this.session?.removeEventListener('select', this.onSelect);
+      this.session?.removeEventListener('end', this.onSessionEnd);
+    } catch (_) { /* ignore */ }
+    
+    // Stop render loop and clear XR session from renderer
+    if (this.scene?.renderer) {
       this.scene.renderer.setAnimationLoop(null);
+      try { this.scene.renderer.xr.setSession(null); } catch (_) { /* ignore */ }
     }
     
-    // Clean up
+    // Improvement 2: Cancel hit test source if supported
+    if (this.hitTestSource?.cancel) {
+      try { this.hitTestSource.cancel(); } catch (_) { /* ignore */ }
+    }
+    
+    // Improvement 6: Reset marker explicitly
+    this.lastHitPosition = null;
+    this.hideHitMarker();
+    if (this.hitTestMarker?.object3D) {
+      this.hitTestMarker.object3D.position.set(0, 0, 0);
+      this.hitTestMarker.object3D.quaternion.set(0, 0, 0, 1);
+    }
+    
+    // Clean up references
     this.session = null;
     this.referenceSpace = null;
     this.viewerSpace = null;
     this.hitTestSource = null;
-    this.lastHitPosition = null;
     
     // Notify session ended
     if (this.onEnd) {
@@ -366,13 +394,18 @@ export class ARSession {
     }
   }
 
+  // Improvement 5: Implement pause/resume properly
   pause() {
-    // Pause session if needed
-    console.log('AR Session paused');
+    if (this.scene?.renderer) {
+      this.scene.renderer.setAnimationLoop(null);
+      this.logger.info('AR_SESSION', 'AR session paused');
+    }
   }
 
   resume() {
-    // Resume session if needed
-    console.log('AR Session resumed');
+    if (this.session && this.scene?.renderer) {
+      this.scene.renderer.setAnimationLoop(this.onXRFrame.bind(this));
+      this.logger.info('AR_SESSION', 'AR session resumed');
+    }
   }
 }

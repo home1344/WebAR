@@ -202,6 +202,9 @@ class WebARApp {
     // Track surface detection state for instruction updates
     this.surfaceDetected = false;
     this.setupSurfaceDetectionListener();
+    
+    // Auto-load first model from the gallery
+    this.autoLoadFirstModel();
   }
 
   /**
@@ -215,12 +218,14 @@ class WebARApp {
         mutations.forEach((mutation) => {
           if (mutation.attributeName === 'class') {
             const isDetected = surfaceStatus.classList.contains('detected');
-            if (isDetected && !this.surfaceDetected) {
-              this.surfaceDetected = true;
-              this.onSurfaceDetected();
-            } else if (!isDetected && this.surfaceDetected) {
-              this.surfaceDetected = false;
-              this.onSurfaceLost();
+            // Always update surface detection state and UI instructions
+            if (isDetected !== this.surfaceDetected) {
+              this.surfaceDetected = isDetected;
+              if (isDetected) {
+                this.onSurfaceDetected();
+              } else {
+                this.onSurfaceLost();
+              }
             }
           }
         });
@@ -626,6 +631,19 @@ class WebARApp {
       this.gestureHandler.attachToModel(modelEntity);
       this.logger.info('MODEL', 'Model reloaded', { url: modelUrl });
       this.uiController.showToast('Model reloaded', 'success');
+    }
+  }
+
+  /**
+   * Auto-load the first model from the gallery
+   */
+  autoLoadFirstModel() {
+    if (CONFIG.models && CONFIG.models.length > 0) {
+      const firstModel = CONFIG.models[0];
+      this.logger.info('MODEL', 'Auto-loading first model', { modelId: firstModel.id, modelName: firstModel.name });
+      this.onModelSelect(firstModel);
+    } else {
+      this.logger.warning('MODEL', 'No models available for auto-loading');
     }
   }
 
