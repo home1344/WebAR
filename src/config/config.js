@@ -35,9 +35,9 @@ export const CONFIG = {
       layers: []
     },
     {
-      id: 'two_story_villa_house',
-      name: 'two_story_villa house',
-      url: '/models/two_story_villa_house.gltf',
+      id: 'house1a',
+      name: 'House 1a Lights',
+      url: '/models/House 1a lights.gltf',
       thumbnail: '/assets/logo.png', // Using logo as placeholder thumbnail
       defaultScale: '1 1 1',
       targetSizeMeters: 0.5,
