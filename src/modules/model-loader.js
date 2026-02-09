@@ -130,10 +130,10 @@ export class ModelLoader {
     
     // Get total size from headers
     const contentLength = response.headers.get('content-length');
-    const total = parseInt(contentLength, 10);
+    const total = contentLength ? parseInt(contentLength, 10) : null;
     
-    if (!contentLength || !response.body) {
-      // Fallback if no content-length header
+    if (!response.body) {
+      // No streaming support - return response as-is
       return response;
     }
     
@@ -150,25 +150,24 @@ export class ModelLoader {
       chunks.push(value);
       receivedLength += value.length;
       
-      // Calculate progress
-      const progress = Math.round((receivedLength / total) * 100);
-      this.loadingProgress = progress;
-      
-      if (onProgress) {
-        onProgress(progress, receivedLength, total);
+      if (total) {
+        // Determinate: calculate progress percentage
+        const progress = Math.round((receivedLength / total) * 100);
+        this.loadingProgress = progress;
+        if (onProgress) {
+          onProgress(progress, receivedLength, total);
+        }
+      } else {
+        // Indeterminate: signal with -1, pass received bytes
+        this.loadingProgress = -1;
+        if (onProgress) {
+          onProgress(-1, receivedLength, null);
+        }
       }
     }
     
-    // Combine chunks into single array
-    const chunksAll = new Uint8Array(receivedLength);
-    let position = 0;
-    for (const chunk of chunks) {
-      chunksAll.set(chunk, position);
-      position += chunk.length;
-    }
-    
-    // Create new response with blob
-    const blob = new Blob([chunksAll]);
+    // Create blob directly from chunks (efficient, no extra copy)
+    const blob = new Blob(chunks);
     return new Response(blob, {
       status: response.status,
       statusText: response.statusText,

@@ -14,6 +14,7 @@ export class GestureHandler {
     this.lastTouchY = 0;
     this.lastDistance = 0;
     this.initialScale = null;
+    this.baseScale = 1;     // Normalized base scale for relative clamping
     this.lastAngle = null;  // For pinch-rotate
     
     // Gesture configuration
@@ -42,6 +43,9 @@ export class GestureHandler {
       y: scale.y,
       z: scale.z
     };
+    
+    // Store base scale for relative clamping (uniform, use x component)
+    this.baseScale = scale.x;
     
     // Add touch event listeners
     document.addEventListener('touchstart', this.onTouchStart, { passive: false });
@@ -214,9 +218,9 @@ export class GestureHandler {
       z: scale.z * scaleFactor
     };
     
-    // Clamp scale to min/max
-    const minScale = this.config.scale.min;
-    const maxScale = this.config.scale.max;
+    // Clamp scale relative to base scale (consistent feel across all models)
+    const minScale = this.baseScale * (this.config.scale.minFactor || 0.2);
+    const maxScale = this.baseScale * (this.config.scale.maxFactor || 5.0);
     
     newScale.x = Math.max(minScale, Math.min(maxScale, newScale.x));
     newScale.y = Math.max(minScale, Math.min(maxScale, newScale.y));
@@ -287,6 +291,7 @@ export class GestureHandler {
         element.classList.contains('controls-panel') ||
         element.classList.contains('layer-btn') ||
         element.classList.contains('ar-logo') ||
+        element.classList.contains('close-app-btn') ||
         element.id === 'ui-overlay' ||
         element.id === 'ar-logo'
       )) {

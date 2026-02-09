@@ -69,7 +69,7 @@ a-scene.hidden {
 }
 
 .logo {
-  width: 600px;
+  width: 240px;
   height: auto;
   margin-bottom: 2rem;
   animation: pulse 2s infinite;
@@ -87,7 +87,7 @@ a-scene.hidden {
 /* Tap Instruction (replaces Start AR button) */
 .tap-instruction {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 6rem;
+  font-size: 2rem;
   font-weight: 500;
   margin-top: 2rem;
   letter-spacing: 0.5px;
@@ -399,6 +399,36 @@ a-scene.hidden {
 /* Hidden state during model loading */
 .loading-hidden {
   display: none !important;
+}
+
+/* Close App Button */
+.close-app-btn {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  right: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-app-btn:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.close-app-btn:active {
+  transform: scale(0.9);
 }
 
 /* Gallery Button */
@@ -1090,6 +1120,18 @@ a-scene.hidden {
   height: 100%;
   background: linear-gradient(90deg, #667eea 0%, #a78bfa 100%);
   transition: width 0.3s ease;
+}
+
+.model-loading-indicator .progress-bar.indeterminate {
+  width: 100% !important;
+  background: linear-gradient(90deg, transparent 0%, #667eea 30%, #a78bfa 50%, #667eea 70%, transparent 100%);
+  background-size: 200% 100%;
+  animation: indeterminate-progress 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate-progress {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .model-loading-indicator .progress-percent {

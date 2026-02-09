@@ -435,11 +435,55 @@ export class UIController {
   /**
    * Update model loading progress
    */
-  updateModelLoadingProgress(indicator, percent) {
+  updateModelLoadingProgress(indicator, percent, receivedBytes = null) {
     const progressBar = indicator.querySelector('.progress-bar');
     const progressPercent = indicator.querySelector('.progress-percent');
     
+    if (percent < 0) {
+      // Indeterminate mode (no Content-Length header)
+      if (progressBar) {
+        progressBar.classList.add('indeterminate');
+        progressBar.style.width = '100%';
+      }
+      if (progressPercent) {
+        // Show downloaded size
+        if (receivedBytes) {
+          const sizeMB = (receivedBytes / (1024 * 1024)).toFixed(1);
+          progressPercent.textContent = `${sizeMB} MB`;
+        } else {
+          progressPercent.textContent = 'Downloading...';
+        }
+      }
+      
+      // Cycle background images based on received bytes
+      let newStage;
+      if (!receivedBytes || receivedBytes < 500000) {
+        newStage = '0';
+      } else if (receivedBytes < 2000000) {
+        newStage = '25';
+      } else if (receivedBytes < 5000000) {
+        newStage = '50';
+      } else {
+        newStage = '75';
+      }
+      
+      if (indicator.dataset.currentStage !== newStage) {
+        indicator.dataset.currentStage = newStage;
+        const bgLayers = indicator.querySelectorAll('.loading-bg');
+        bgLayers.forEach(layer => {
+          if (layer.dataset.stage === newStage) {
+            layer.classList.add('loading-bg-active');
+          } else {
+            layer.classList.remove('loading-bg-active');
+          }
+        });
+      }
+      return;
+    }
+    
+    // Determinate mode (has Content-Length)
     if (progressBar) {
+      progressBar.classList.remove('indeterminate');
       progressBar.style.width = `${percent}%`;
     }
     
@@ -493,6 +537,7 @@ export class UIController {
     const galleryBtn = document.getElementById('gallery-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const logBtn = document.getElementById('log-btn');
+    const closeAppBtn = document.getElementById('close-app-btn');
     const surfaceStatus = this.surfaceStatus;
     const layerButtons = document.querySelectorAll('#layer-buttons button');
 
@@ -508,6 +553,9 @@ export class UIController {
     if (logBtn) {
       logBtn.disabled = !enabled;
       logBtn.classList.toggle('loading-hidden', !enabled);
+    }
+    if (closeAppBtn) {
+      closeAppBtn.classList.toggle('loading-hidden', !enabled);
     }
     if (surfaceStatus) {
       surfaceStatus.classList.toggle('loading-hidden', !enabled);

@@ -24,6 +24,13 @@ export class ARSession {
     this.reticleEnabled = true;   // Controls whether reticle can be shown
     this.placementEnabled = true; // Controls whether taps trigger placement
     
+    // Surface detection state: 'detecting' → 'detected' after stable hit results
+    this.surfaceState = 'detecting';       // 'detecting' | 'detected'
+    this.surfaceDetected = false;          // True only when state === 'detected'
+    this._hitStableStart = 0;              // Timestamp when continuous hits began
+    this._hitStableThreshold = 800;        // ms of continuous hits before 'detected'
+    this._lastHitActive = false;           // Whether previous frame had a hit
+    
     // Placement suppression: prevents accidental placement after UI interactions
     // When a UI button enables placement, we suppress for a short time to avoid
     // the same tap that hit the button from also triggering placement
@@ -231,6 +238,9 @@ export class ARSession {
             z: transform.position.z
           };
           
+          // Update surface state (detecting → detected after stabilization)
+          this._updateSurfaceState(true, time);
+          
           // Update UI status
           this.updateHitTestStatus(true);
           
@@ -244,6 +254,9 @@ export class ARSession {
       } else {
         // No hit detected - clear stale position to prevent placing model at old location
         this.lastHitPosition = null;
+        
+        // Reset surface state back to detecting
+        this._updateSurfaceState(false, time);
         
         this.updateHitTestStatus(false);
         this.hideHitMarker();
@@ -300,6 +313,12 @@ export class ARSession {
     // If placement is disabled, ignore taps entirely
     if (!this.placementEnabled) {
       this.logger.info('USER_ACTION', 'Tap ignored - placement disabled');
+      return;
+    }
+    
+    // Block placement when surface is not yet confirmed ('detecting')
+    if (!this.surfaceDetected) {
+      this.logger.info('USER_ACTION', 'Tap ignored - surface not yet detected (still detecting)');
       return;
     }
     
@@ -422,6 +441,12 @@ export class ARSession {
       this.hitTestMarker.object3D.quaternion.set(0, 0, 0, 1);
     }
     
+    // Reset surface detection state for next session
+    this.surfaceState = 'detecting';
+    this.surfaceDetected = false;
+    this._hitStableStart = 0;
+    this._lastHitActive = false;
+    
     // Clean up references
     this.session = null;
     this.referenceSpace = null;
@@ -478,5 +503,47 @@ export class ARSession {
   suppressPlacement(durationMs = 300) {
     this.placementSuppressedUntil = performance.now() + durationMs;
     this.logger.info('AR_SESSION', `Placement suppressed for ${durationMs}ms`);
+  }
+
+  /**
+   * Internal: track surface detection state with stabilization timer.
+   * Transitions from 'detecting' → 'detected' after continuous hits for _hitStableThreshold ms.
+   * Resets to 'detecting' when hits stop.
+   */
+  _updateSurfaceState(hitActive, time) {
+    if (hitActive) {
+      if (!this._lastHitActive) {
+        // Hits just started – begin stability timer
+        this._hitStableStart = time;
+      }
+      if (this.surfaceState === 'detecting' && (time - this._hitStableStart) >= this._hitStableThreshold) {
+        this._setSurfaceState('detected');
+      }
+    } else {
+      // No hit – reset to detecting
+      if (this.surfaceState === 'detected') {
+        this._setSurfaceState('detecting');
+      }
+      this._hitStableStart = 0;
+    }
+    this._lastHitActive = hitActive;
+  }
+
+  /**
+   * Internal: apply a surface state change and notify the reticle component.
+   */
+  _setSurfaceState(state) {
+    if (this.surfaceState === state) return;
+    this.surfaceState = state;
+    this.surfaceDetected = (state === 'detected');
+
+    // Notify the hit-test-marker A-Frame component to switch visuals
+    if (this.hitTestMarker) {
+      const comp = this.hitTestMarker.components['hit-test-marker'];
+      if (comp && comp.setSurfaceState) {
+        comp.setSurfaceState(state);
+      }
+    }
+    this.logger.info('AR_SESSION', `Surface state → ${state}`);
   }
 }

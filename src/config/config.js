@@ -82,8 +82,8 @@ export const CONFIG = {
     // Scale settings
     scale: {
       enabled: true,
-      min: 0.001,
-      max: 100.0,
+      minFactor: 0.2,   // Can shrink to 20% of normalized base size
+      maxFactor: 5.0,    // Can grow to 5x normalized base size
       speed: 1.0  // Direct 1:1 pinch-to-scale ratio for responsive feel
     },
     // Pinch-rotate settings (two-finger twist)
@@ -102,7 +102,7 @@ export const CONFIG = {
     // Texture resolution limit
     maxTextureSize: 2048,
     // Shadow settings
-    shadows: true,
+    shadows: false,
     // Anti-aliasing
     antialias: true
   }

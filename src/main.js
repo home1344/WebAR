@@ -126,7 +126,7 @@ class WebARApp {
       // Add tap instruction text
       const tapInstruction = document.createElement('p');
       tapInstruction.className = 'tap-instruction';
-      tapInstruction.textContent = 'TAP TO START';
+      tapInstruction.textContent = '';
       loadingScreen.querySelector('.loading-content').appendChild(tapInstruction);
       
       // One-time tap listener to start AR
@@ -199,6 +199,18 @@ class WebARApp {
         return;
       }
       this.gallery.show();
+    });
+    
+    // Close app button - go back to referring website
+    document.getElementById('close-app-btn').addEventListener('click', () => {
+      this.logger.event('USER_ACTION', 'Close app button clicked');
+      if (document.referrer) {
+        window.location.href = document.referrer;
+      } else if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.close();
+      }
     });
     
     // Reload button - guarded by loading state
@@ -635,6 +647,14 @@ class WebARApp {
     this.activeModelId = modelId;
     this.modelIsPlaced = false;
     
+    // Reset to normalized base scale and zero rotation for consistent sizing
+    const baseScale = parseFloat(cachedModel.entity.dataset.baseScale);
+    if (baseScale && baseScale > 0) {
+      cachedModel.entity.setAttribute('scale', `${baseScale} ${baseScale} ${baseScale}`);
+      this.logger.info('MODEL_SCALE', 'Reset cached model to base scale', { baseScale });
+    }
+    cachedModel.entity.setAttribute('rotation', '0 0 0');
+    
     // Model stays hidden until user taps reticle to place
     this.currentModel.setAttribute('visible', 'false');
     
@@ -674,8 +694,10 @@ class WebARApp {
     try {
       // Use ModelLoader to fetch with progress tracking (downloads are cached)
       modelUrl = await this.modelLoader.loadModel(url, (progress, received, total) => {
-        this.uiController.updateModelLoadingProgress(loadingIndicator, progress);
-        this.logger.info('MODEL_LOAD', `Loading progress: ${progress}%`, { received, total });
+        this.uiController.updateModelLoadingProgress(loadingIndicator, progress, received);
+        if (progress >= 0) {
+          this.logger.info('MODEL_LOAD', `Loading progress: ${progress}%`, { received, total });
+        }
       });
       
       this.logger.success('MODEL_LOAD', 'Model fetched successfully', { objectUrl: modelUrl });
@@ -774,7 +796,8 @@ class WebARApp {
           const maxReasonableOffset = 5.0;
           const clampedFloorOffset = Math.min(Math.abs(floorOffset), maxReasonableOffset) * Math.sign(floorOffset);
           
-          // Store floor offset for placement
+          // Store base scale and floor offset for placement and reset on switch
+          modelEntity.dataset.baseScale = scaleFactor;
           modelEntity.dataset.floorOffset = clampedFloorOffset;
           
           this.logger.info('MODEL_PIVOT', 'Floor offset calculated', {

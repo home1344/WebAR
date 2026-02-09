@@ -75,8 +75,9 @@
            optionalFeatures: dom-overlay, light-estimation;
            overlayElement: #ui-overlay"
     vr-mode-ui="enabled: false"
-    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmic; exposure: 2"
+    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmic; exposure: 3"
     reflection="directionalLight:a-light#main-light"
+    shadow="enabled: false"
     loading-screen="enabled: false">
     
     <!-- Assets -->
@@ -96,72 +97,35 @@
       </a-camera>
     </a-entity>
 
-    <!-- Hit test marker (world space - NOT inside camera) - Enhanced Reticle -->
+    <!-- Hit test marker (world space - NOT inside camera) - Hexagonal Reticle -->
+    <!-- Reticle geometry is built programmatically by the hit-test-marker component -->
     <a-entity
       id="marker"
       hit-test-marker
       visible="false">
-      <!-- Outer glow ring -->
-      <a-entity
-        geometry="primitive: ring; radiusInner: 0.18; radiusOuter: 0.22"
-        material="color: #22c55e; opacity: 0.4; transparent: true"
-        rotation="-90 0 0">
-      </a-entity>
-      <!-- Main ring -->
-      <a-entity
-        geometry="primitive: ring; radiusInner: 0.12; radiusOuter: 0.18"
-        material="color: white; opacity: 0.9"
-        rotation="-90 0 0">
-      </a-entity>
-      <!-- Inner animated ring -->
-      <a-entity
-        geometry="primitive: ring; radiusInner: 0.08; radiusOuter: 0.12"
-        material="color: #22c55e; opacity: 0.95"
-        rotation="-90 0 0"
-        animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 800; loop: true; dir: alternate; easing: easeInOutQuad">
-      </a-entity>
-      <!-- Center dot -->
-      <a-entity
-        geometry="primitive: circle; radius: 0.04"
-        material="color: white; opacity: 1"
-        rotation="-90 0 0">
-      </a-entity>
-      <!-- Crosshair lines -->
-      <a-entity
-        geometry="primitive: plane; width: 0.35; height: 0.015"
-        material="color: white; opacity: 0.6; transparent: true"
-        rotation="-90 0 0"
-        position="0 0.001 0">
-      </a-entity>
-      <a-entity
-        geometry="primitive: plane; width: 0.015; height: 0.35"
-        material="color: white; opacity: 0.6; transparent: true"
-        rotation="-90 0 0"
-        position="0 0.001 0">
-      </a-entity>
     </a-entity>
 
     <!-- Model container -->
     <a-entity id="model-container"></a-entity>
 
-    <!-- Enhanced Lighting for PBR Models -->
-    <!-- Ambient provides base illumination -->
-    <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
+    <!-- Bright Lighting for PBR Models (no shadows) -->
+    <!-- Strong ambient provides even base illumination -->
+    <a-light type="ambient" color="#ffffff" intensity="1.5"></a-light>
     
-    <!-- Main directional light (sun-like) - reflection component controls this in AR -->
-    <a-light id="main-light" type="directional" position="1 2 1" color="#ffffff" intensity="3.0" cast-shadow="true"></a-light>
+    <!-- Main directional light (sun-like, no shadow) -->
+    <a-light id="main-light" type="directional" position="1 2 1" color="#ffffff" intensity="3.5"></a-light>
     
-    <!-- Fill light from opposite side to reduce harsh shadows -->
-    <a-light type="directional" position="-1 1.5 -1" color="#ffffff" intensity="1.5"></a-light>
+    <!-- Fill light from opposite side for even illumination -->
+    <a-light type="directional" position="-1 1.5 -1" color="#ffffff" intensity="2.0"></a-light>
     
     <!-- Front key light to illuminate model face -->
-    <a-light type="directional" position="0 1 2" color="#fffaf0" intensity="1.0"></a-light>
+    <a-light type="directional" position="0 1 2" color="#fffaf0" intensity="1.5"></a-light>
     
     <!-- Rim light from behind for depth separation -->
-    <a-light type="directional" position="0 2 -2" color="#e0e8ff" intensity="0.8"></a-light>
+    <a-light type="directional" position="0 2 -2" color="#e0e8ff" intensity="1.0"></a-light>
     
-    <!-- Hemisphere light for natural sky/ground gradient -->
-    <a-light type="hemisphere" color="#87CEEB" groundColor="#8B7355" intensity="1.0"></a-light>
+    <!-- Hemisphere light for natural sky/ground gradient (environment light) -->
+    <a-light type="hemisphere" color="#87CEEB" groundColor="#8B7355" intensity="1.5"></a-light>
   </a-scene>
 
   <!-- UI Overlay -->
@@ -169,6 +133,14 @@
     <!-- Persistent Logo (top-right) -->
     <img id="ar-logo" src="/assets/logo.png" alt="Logo" class="ar-logo">
     
+    <!-- Close App Button (top-right) -->
+    <button id="close-app-btn" class="close-app-btn" type="button">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+
     <!-- Gallery Button -->
     <button id="gallery-btn" class="ui-btn gallery-btn">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
