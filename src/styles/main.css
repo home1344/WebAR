@@ -87,9 +87,9 @@ a-scene.hidden {
 /* Tap Instruction (replaces Start AR button) */
 .tap-instruction {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 2rem;
+  font-size: 1.2rem;
   font-weight: 500;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   letter-spacing: 0.5px;
   animation: fadeInOut 2s ease-in-out infinite;
 }
@@ -346,9 +346,9 @@ a-scene.hidden {
 
 /* UI Buttons - Modern Pill Style */
 .ui-btn {
-  background: rgba(255, 255, 255, 0.95);
-  color: #1f2937;
-  border: none;
+  background: rgba(15, 23, 35, 0.8);
+  color: #ffffff;
+  border: 1px solid rgba(6, 182, 212, 0.4);
   padding: 0.75rem 1.25rem;
   border-radius: 14px;
   font-size: 0.875rem;
@@ -357,34 +357,33 @@ a-scene.hidden {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1),
-              0 1px 3px rgba(0, 0, 0, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2),
+              0 1px 3px rgba(0, 0, 0, 0.15);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid rgba(0, 0, 0, 0.05);
   letter-spacing: 0.01em;
 }
 
 .ui-btn:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15),
-              0 2px 6px rgba(0, 0, 0, 0.1),
-              inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3),
+              0 0 8px rgba(6, 182, 212, 0.2);
+  background: rgba(15, 23, 35, 0.95);
+  border-color: rgba(6, 182, 212, 0.6);
 }
 
 .ui-btn:active {
   transform: translateY(0) scale(0.98);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ui-btn svg {
   width: 18px;
   height: 18px;
   stroke-width: 2px;
-  opacity: 0.8;
+  opacity: 0.9;
+  color: #ffffff;
 }
 
 /* Disabled state for UI buttons */
@@ -464,8 +463,9 @@ a-scene.hidden {
   left: 20px;
   right: 20px;
   bottom: 100px;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(10, 15, 25, 0.92);
   backdrop-filter: blur(10px);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -482,8 +482,8 @@ a-scene.hidden {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(6, 182, 212, 0.08);
+  border-bottom: 1px solid rgba(6, 182, 212, 0.2);
 }
 
 .log-header h3 {
@@ -499,9 +499,9 @@ a-scene.hidden {
 }
 
 .log-action-btn {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(6, 182, 212, 0.15);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(6, 182, 212, 0.3);
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -510,7 +510,7 @@ a-scene.hidden {
 }
 
 .log-action-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(6, 182, 212, 0.3);
 }
 
 .log-content {
@@ -582,8 +582,9 @@ a-scene.hidden {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: row;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   max-width: 90%;
 }
@@ -622,7 +623,7 @@ a-scene.hidden {
 
 /* Layer Popup Card */
 .layer-popup {
-  background: rgba(255, 255, 255, 0.97);
+  background: rgba(15, 23, 35, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 16px;
@@ -631,7 +632,8 @@ a-scene.hidden {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   animation: slideUp 0.25s ease;
   overflow: hidden;
 }
@@ -641,13 +643,13 @@ a-scene.hidden {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(6, 182, 212, 0.2);
 }
 
 .layer-popup-header h3 {
   font-size: 1rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #ffffff;
   margin: 0;
 }
 
@@ -655,7 +657,7 @@ a-scene.hidden {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #999;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -667,8 +669,8 @@ a-scene.hidden {
 }
 
 .layer-popup-close:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #333;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 /* Layer Buttons inside popup */
@@ -682,9 +684,9 @@ a-scene.hidden {
 }
 
 .layer-btn {
-  background: rgba(103, 126, 234, 0.1);
-  color: #667eea;
-  border: 1px solid #667eea;
+  background: rgba(6, 182, 212, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(6, 182, 212, 0.4);
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.85rem;
@@ -693,8 +695,9 @@ a-scene.hidden {
 }
 
 .layer-btn.active {
-  background: #667eea;
+  background: rgba(6, 182, 212, 0.6);
   color: white;
+  border-color: rgba(6, 182, 212, 0.8);
 }
 
 .layer-btn:hover {
@@ -728,7 +731,8 @@ a-scene.hidden {
 }
 
 .gallery-content {
-  background: white;
+  background: rgba(15, 23, 35, 0.95);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   border-radius: 16px;
   max-width: 500px;
   width: 90%;
@@ -751,7 +755,7 @@ a-scene.hidden {
 }
 
 .gallery-content h2 {
-  color: #333;
+  color: #ffffff;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
 }
@@ -763,7 +767,7 @@ a-scene.hidden {
   background: none;
   border: none;
   font-size: 2rem;
-  color: #999;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: color 0.2s;
   width: 32px;
@@ -774,7 +778,7 @@ a-scene.hidden {
 }
 
 .close-btn:hover {
-  color: #333;
+  color: #ffffff;
 }
 
 /* Model Grid */
@@ -785,7 +789,8 @@ a-scene.hidden {
 }
 
 .model-card {
-  background: #f5f5f5;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.2);
   border-radius: 12px;
   padding: 0.75rem;
   cursor: pointer;
@@ -795,18 +800,20 @@ a-scene.hidden {
 
 .model-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  border-color: rgba(6, 182, 212, 0.5);
 }
 
 .model-card.selected {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(6, 182, 212, 0.3);
+  border-color: rgba(6, 182, 212, 0.7);
   color: white;
 }
 
 .model-thumbnail {
   width: 100%;
   aspect-ratio: 1;
-  background: white;
+  background: rgba(0, 0, 0, 0.3);
   border-radius: 8px;
   margin-bottom: 0.5rem;
   display: flex;
@@ -834,7 +841,7 @@ a-scene.hidden {
 .model-name {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #333;
+  color: rgba(255, 255, 255, 0.9);
   margin-bottom: 0.25rem;
 }
 
@@ -849,8 +856,8 @@ a-scene.hidden {
 }
 
 .layer-badge {
-  background: rgba(103, 126, 234, 0.1);
-  color: #667eea;
+  background: rgba(6, 182, 212, 0.15);
+  color: rgba(6, 182, 212, 0.9);
   padding: 0.2rem 0.5rem;
   border-radius: 10px;
   font-size: 0.75rem;
@@ -958,6 +965,11 @@ a-scene.hidden {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 90%;
   z-index: 99;
+}
+
+.instructions.visible {
+  opacity: 1;
+  visibility: visible;
 }
 
 .instructions p {

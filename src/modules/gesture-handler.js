@@ -175,11 +175,11 @@ export class GestureHandler {
     
     if (this.config.rotation.axis === 'y') {
       // Rotate around Y axis only
-      rotation.y -= deltaX * rotationSpeed;
+      rotation.y += deltaX * rotationSpeed;
     } else if (this.config.rotation.axis === 'xy') {
       // Rotate around both X and Y
-      rotation.y -= deltaX * rotationSpeed;
-      rotation.x += deltaY * rotationSpeed;
+      rotation.y += deltaX * rotationSpeed;
+      rotation.x -= deltaY * rotationSpeed;
     }
     
     // Apply rotation
