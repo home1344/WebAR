@@ -561,6 +561,12 @@ export class UIController {
       surfaceStatus.classList.toggle('loading-hidden', !enabled);
     }
     
+    // Hide layer toggles container during loading
+    const layerToggles = document.getElementById('layer-toggles');
+    if (layerToggles && !enabled) {
+      layerToggles.classList.add('hidden');
+    }
+    
     // Disable layer buttons
     layerButtons.forEach(btn => {
       btn.disabled = !enabled;

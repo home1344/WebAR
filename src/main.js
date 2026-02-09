@@ -399,6 +399,11 @@ class WebARApp {
         
         this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
         
+        // Show layer controls if model has layers
+        if (cachedModel.layers && cachedModel.layers.length > 0) {
+          this.setupLayerControls(cachedModel.layers);
+        }
+        
         this.logger.info('MODEL_SWITCH', 'Cached model placed in place', {
           position: posString,
           floorOffset: floorOffset
@@ -580,8 +585,9 @@ class WebARApp {
           this.gestureHandler.attachToModel(this.currentModel);
           
           // Setup layer controls if needed
-          if (this.previousModelState.config?.layers?.length > 0) {
-            this.setupLayerControls(this.previousModelState.config.layers);
+          // Restore layer controls from cached layers
+          if (cached.layers && cached.layers.length > 0) {
+            this.setupLayerControls(cached.layers);
           }
         }
         
@@ -658,11 +664,6 @@ class WebARApp {
     // Model stays hidden until user taps reticle to place
     this.currentModel.setAttribute('visible', 'false');
     
-    // Setup layer controls if model has layers
-    if (cachedModel.config.layers && cachedModel.config.layers.length > 0) {
-      this.setupLayerControls(cachedModel.config.layers);
-    }
-    
     this.logger.info('MODEL_CACHE', 'Cached model activated', { modelId });
   }
 
@@ -736,11 +737,6 @@ class WebARApp {
       isReady: false
     });
     
-    // Setup layer controls if model has layers
-    if (config.layers && config.layers.length > 0) {
-      this.setupLayerControls(config.layers);
-    }
-    
     // Listen for model loaded (A-Frame parsed the glTF)
     modelEntity.addEventListener('model-loaded', () => {
       this.uiController.removeModelLoadingIndicator(loadingIndicator);
@@ -807,13 +803,20 @@ class WebARApp {
         }
       }
       
-      // IMPORTANT: Mark entity as ready in cache
+      // Auto-discover toggleable layers from model hierarchy
+      const modelLayers = (config.layers && config.layers.length > 0)
+        ? config.layers
+        : this.discoverModelLayers(modelEntity);
+      
+      // IMPORTANT: Mark entity as ready in cache (including discovered layers)
       const cachedEntry = this.modelEntityCache.get(config.id);
       if (cachedEntry) {
         cachedEntry.isReady = true;
+        cachedEntry.layers = modelLayers;
         this.logger.info('MODEL_CACHE', 'Model cached and ready for instant switching', { 
           modelId: config.id,
-          cacheSize: this.modelEntityCache.size
+          cacheSize: this.modelEntityCache.size,
+          layerCount: modelLayers.length
         });
       }
       
@@ -849,6 +852,11 @@ class WebARApp {
         this.gestureHandler.attachToModel(modelEntity);
         
         this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+        
+        // Show layer controls if model has layers
+        if (modelLayers.length > 0) {
+          this.setupLayerControls(modelLayers);
+        }
         
         this.logger.info('MODEL_SWITCH', 'Non-cached model placed in place', {
           position: posString,
@@ -1029,11 +1037,36 @@ class WebARApp {
     });
     
     this.uiController.showSuccessInstructions('Pinch to scale, drag to rotate', 4000);
+    
+    // Show layer controls if model has layers
+    const placedCacheEntry = this.modelEntityCache.get(this.activeModelId);
+    if (placedCacheEntry && placedCacheEntry.layers && placedCacheEntry.layers.length > 0) {
+      this.setupLayerControls(placedCacheEntry.layers);
+    }
   }
 
   setupLayerControls(layers) {
     const layerToggles = document.getElementById('layer-toggles');
     const layerButtons = document.getElementById('layer-buttons');
+    
+    if (!layers || layers.length === 0) {
+      layerToggles.classList.add('hidden');
+      return;
+    }
+    
+    // Reset all layer visibility to visible (ensures clean state on reposition)
+    if (this.currentModel) {
+      const mesh = this.currentModel.getObject3D('mesh');
+      if (mesh) {
+        layers.forEach(layer => {
+          mesh.traverse((child) => {
+            if (child.name === layer.node) {
+              child.visible = true;
+            }
+          });
+        });
+      }
+    }
     
     // Clear existing buttons
     layerButtons.innerHTML = '';
@@ -1072,6 +1105,49 @@ class WebARApp {
         console.log(`Layer ${nodeName} visibility: ${visible}`);
       }
     });
+  }
+
+  /**
+   * Auto-discover toggleable layers from the loaded glTF model.
+   * Inspects direct children of the scene root for named groups/meshes.
+   * @param {Element} modelEntity - The A-Frame entity with a loaded glTF model
+   * @returns {Array<{name: string, node: string}>} Discovered layers
+   */
+  discoverModelLayers(modelEntity) {
+    const mesh = modelEntity.getObject3D('mesh');
+    if (!mesh) return [];
+    
+    const layers = [];
+    
+    // Navigate to meaningful root: if the scene root has only one wrapper child, go deeper
+    let root = mesh;
+    if (root.children.length === 1 && root.children[0].children && root.children[0].children.length > 0) {
+      root = root.children[0];
+    }
+    
+    root.children.forEach(child => {
+      // Skip unnamed nodes, lights, cameras
+      if (!child.name || child.name === '') return;
+      if (child instanceof THREE.Light || child instanceof THREE.Camera) return;
+      
+      // Format display name: replace underscores/dots/dashes with spaces, title case
+      const displayName = child.name
+        .replace(/[_\.\-]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .trim();
+      
+      layers.push({
+        name: displayName,
+        node: child.name
+      });
+    });
+    
+    this.logger.info('LAYERS', 'Auto-discovered model layers', {
+      count: layers.length,
+      layers: layers.map(l => ({ display: l.name, node: l.node }))
+    });
+    
+    return layers;
   }
 
   /**
@@ -1166,6 +1242,9 @@ class WebARApp {
     
     // Hide the model (but keep it in DOM for re-placement)
     this.currentModel.setAttribute('visible', 'false');
+    
+    // Hide layer controls during reposition
+    document.getElementById('layer-toggles').classList.add('hidden');
     
     // Enable reticle and placement so user can tap to re-place
     // Use suppression to prevent the reposition button tap from triggering placement
