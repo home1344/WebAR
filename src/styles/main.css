@@ -86,13 +86,13 @@ a-scene.hidden {
 
 /* Tap Instruction (replaces Start AR button) */
 .tap-instruction {
-  color: rgb(236, 231, 231);
+  color: hsl(0, 26%, 96%);
   font-size: 1.0rem;
   font-weight: 500;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   text-transform: uppercase;
   position: absolute;
-  bottom: 30%;
+  bottom: 47%;
   left: 50%;
   transform: translateX(-50%);
   animation: fadeInOut 2s ease-in-out infinite;
@@ -1069,22 +1069,21 @@ a-scene.hidden {
 }
 
 .toast-success {
-  background: rgba(15, 23, 35, 0.92);
-  border: 1px solid rgba(6, 182, 212, 0.5);
-  border-left: 3px solid #06b6d4;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.92) 0%, rgba(8, 145, 178, 0.92) 100%);
+  border: 2px solid rgba(6, 182, 212, 0.7);
 }
 
 .toast-success .toast-icon {
-  background: rgba(6, 182, 212, 0.2);
-  color: #06b6d4;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 .toast-success .toast-title {
-  color: #06b6d4;
+  color: #ffffff;
 }
 
 .toast-success .toast-message {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .toast-error {
@@ -1106,8 +1105,8 @@ a-scene.hidden {
 }
 
 .toast-info {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(37, 99, 235, 0.95) 100%);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.92) 0%, rgba(8, 145, 178, 0.92) 100%);
+  border: 2px solid rgba(6, 182, 212, 0.7);
 }
 
 .toast-info .toast-icon {
