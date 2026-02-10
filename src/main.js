@@ -309,7 +309,7 @@ class WebARApp {
    * Called when surface is first detected
    */
   onSurfaceDetected() {
-    if (!this.modelIsPlaced) {
+    if (!this.modelIsPlaced && !this.isRepositioning) {
       this.uiController.showSurfaceDetectedInstructions();
     }
   }
@@ -1310,16 +1310,13 @@ class WebARApp {
     this.arSession.setReticleEnabled(true);
     this.arSession.setPlacementEnabled(true);
     
-    // Update instructions
-    if (this.surfaceDetected) {
-      this.uiController.showSurfaceDetectedInstructions();
-    } else {
-      this.uiController.showInstructions('Move your device slowly from side to side while pointing at the floor', {
-        duration: 0,
-        icon: 'scan',
-        state: 'scanning'
-      });
-    }
+    // Always show scanning instruction during reposition so user knows to find a surface
+    this.uiController.currentInstructionState = null; // Reset state to allow re-showing
+    this.uiController.showInstructions('Move your phone to find surface', {
+      duration: 0,
+      icon: 'scan',
+      state: 'repositioning'
+    });
     
     this.uiController.showToast('Tap the reticle to reposition', 'info');
     this.logger.info('MODEL', 'Model hidden - awaiting reposition tap');
