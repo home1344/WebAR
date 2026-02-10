@@ -1125,14 +1125,16 @@ class WebARApp {
       };
     }
     
-    // Close popup on overlay background click
+    // Close popup on tapping anywhere except layer toggle buttons
     layerPopupOverlay.onclick = (e) => {
-      if (e.target === layerPopupOverlay) {
-        layerPopupOverlay.classList.remove('visible');
-        setTimeout(() => {
-          layerPopupOverlay.classList.add('hidden');
-        }, 250);
+      // Keep popup open only if user tapped a layer toggle button
+      if (e.target.classList.contains('layer-btn')) {
+        return;
       }
+      layerPopupOverlay.classList.remove('visible');
+      setTimeout(() => {
+        layerPopupOverlay.classList.add('hidden');
+      }, 250);
     };
   }
 

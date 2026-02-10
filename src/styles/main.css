@@ -91,10 +91,7 @@ a-scene.hidden {
   font-weight: 500;
   letter-spacing: 2px;
   text-transform: uppercase;
-  position: absolute;
-  bottom: 41%;
-  left: 50%;
-  transform: translateX(-50%);
+  margin-top: 0.5rem;
   animation: fadeInOut 2s ease-in-out infinite;
 }
 
@@ -352,7 +349,7 @@ a-scene.hidden {
 .ui-btn {
   background: rgba(15, 23, 35, 0.8);
   color: #ffffff;
-  border: 1px solid rgba(6, 182, 212, 0.4);
+  border: 2px solid rgba(6, 182, 212, 0.5);
   padding: 0.75rem 1.25rem;
   border-radius: 14px;
   font-size: 0.875rem;
@@ -374,7 +371,7 @@ a-scene.hidden {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3),
               0 0 8px rgba(6, 182, 212, 0.2);
   background: rgba(15, 23, 35, 0.95);
-  border-color: rgba(6, 182, 212, 0.6);
+  border-color: rgba(6, 182, 212, 0.8);
 }
 
 .ui-btn:active {
@@ -439,11 +436,6 @@ a-scene.hidden {
   position: absolute;
   top: calc(70px + env(safe-area-inset-top, 0px));
   right: 20px;
-  border: 2px solid rgba(6, 182, 212, 0.5);
-}
-
-.gallery-btn:hover {
-  border-color: rgba(6, 182, 212, 0.8);
 }
 
 .gallery-btn svg {
@@ -457,11 +449,6 @@ a-scene.hidden {
   position: absolute;
   top: calc(130px + env(safe-area-inset-top, 0px));
   right: 20px;
-  border: 2px solid rgba(6, 182, 212, 0.5);
-}
-
-.log-btn:hover {
-  border-color: rgba(6, 182, 212, 0.8);
 }
 
 .log-btn svg {
@@ -471,13 +458,6 @@ a-scene.hidden {
 }
 
 /* Reposition Button */
-#reload-btn {
-  border: 2px solid rgba(6, 182, 212, 0.5);
-}
-
-#reload-btn:hover {
-  border-color: rgba(6, 182, 212, 0.8);
-}
 
 /* Log Panel */
 .log-panel {
