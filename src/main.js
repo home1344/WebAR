@@ -8,7 +8,7 @@ import { ModelLoader } from './modules/model-loader.js';
 import { UIController } from './modules/ui-controller.js';
 import { GestureHandler } from './modules/gesture-handler.js';
 import { Gallery } from './modules/gallery.js';
-import { CONFIG } from './config/config.js';
+import { CONFIG, loadConfig, getConfig } from './config/config.js';
 import { getLogger } from './modules/logger.js';
 import './components/ar-components.js';
 
@@ -68,6 +68,13 @@ class WebARApp {
       // Initialize UI controller first
       this.uiController = new UIController();
       
+      // Load config from backend API (falls back to hardcoded defaults)
+      const config = await loadConfig();
+      this.logger.info('APP_INIT', 'Config loaded', { 
+        modelCount: config.models.length,
+        source: config === CONFIG ? 'fallback' : 'api_or_cached'
+      });
+      
       // Check WebXR support
       const webxrSupported = await this.checkWebXRSupport();
       this.logger.logWebXRSupport(webxrSupported);
@@ -77,9 +84,9 @@ class WebARApp {
         return;
       }
       
-      // Initialize modules
-      this.modelLoader = new ModelLoader(CONFIG.models);
-      this.gallery = new Gallery(CONFIG.models, this.onModelSelect.bind(this));
+      // Initialize modules using dynamically loaded config
+      this.modelLoader = new ModelLoader(config.models);
+      this.gallery = new Gallery(config.models, this.onModelSelect.bind(this));
       
       // Wait for A-Frame to be ready
       await this.waitForAFrame();
@@ -102,7 +109,7 @@ class WebARApp {
       
       this.isInitialized = true;
       this.logger.success('APP_INIT', 'Initialization complete - waiting for user to start AR', {
-        modelsAvailable: CONFIG.models.length,
+        modelsAvailable: config.models.length,
         config: {
           hitTestEnabled: true,
           gesturesEnabled: true
@@ -316,7 +323,7 @@ class WebARApp {
    * Called when surface is first detected
    */
   onSurfaceDetected() {
-    if (!this.modelIsPlaced && !this.isRepositioning) {
+    if (!this.modelIsPlaced) {
       this.uiController.showSurfaceDetectedInstructions();
     }
   }
@@ -326,7 +333,7 @@ class WebARApp {
    */
   onSurfaceLost() {
     if (!this.modelIsPlaced) {
-      this.uiController.showInstructions('vice slowly from side to side while pointing at the floor', {
+      this.uiController.showInstructions('Point your device at the floor and move it around slowly', {
         duration: 0,
         icon: 'scan',
         state: 'scanning'
@@ -688,9 +695,10 @@ class WebARApp {
     const container = document.getElementById('model-container');
     const startTime = Date.now();
     
-    // Show loading indicator with cancel button
+    // Show loading indicator with cancel button and per-model rendering images
     const loadingIndicator = this.uiController.createModelLoadingIndicator(
-      () => this.cancelModelLoading()
+      () => this.cancelModelLoading(),
+      config.renderingImages || null
     );
     this.currentLoadingIndicator = loadingIndicator;
     
@@ -1332,8 +1340,9 @@ class WebARApp {
    * Auto-load the first model from the gallery
    */
   autoLoadFirstModel() {
-    if (CONFIG.models && CONFIG.models.length > 0) {
-      const firstModel = CONFIG.models[0];
+    const currentConfig = getConfig();
+    if (currentConfig.models && currentConfig.models.length > 0) {
+      const firstModel = currentConfig.models[0];
       this.logger.info('MODEL', 'Auto-loading first model', { modelId: firstModel.id, modelName: firstModel.name });
       this.onModelSelect(firstModel);
     } else {

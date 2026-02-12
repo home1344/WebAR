@@ -989,6 +989,15 @@ a-scene.hidden {
   text-align: center;
 }
 
+/* Blur panel for gesture/success instructions */
+.instructions.instruction-blur-panel {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
 .instruction-icon {
   width: 24px;
   height: 24px;

@@ -34,5 +34,6 @@ temp/
 docs/
 images/
 models/
+dist/
 !public/models/
 !public/models/**

@@ -3,7 +3,7 @@
  * Manages touch gestures for model manipulation (rotate, scale)
  */
 
-import { CONFIG } from '../config/config.js';
+import { getConfig } from '../config/config.js';
 
 export class GestureHandler {
   constructor() {
@@ -17,8 +17,8 @@ export class GestureHandler {
     this.baseScale = 1;     // Normalized base scale for relative clamping
     this.lastAngle = null;  // For pinch-rotate
     
-    // Gesture configuration
-    this.config = CONFIG.gestures;
+    // Gesture configuration (reads from dynamically loaded config)
+    this.config = getConfig().gestures;
     
     // Bind methods
     this.onTouchStart = this.onTouchStart.bind(this);

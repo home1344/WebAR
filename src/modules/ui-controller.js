@@ -208,6 +208,13 @@ export class UIController {
     // Update icon based on type
     this.updateInstructionIcon(icon);
     
+    // Toggle blur panel for gesture/success instructions
+    if (state === 'success') {
+      this.instructions.classList.add('instruction-blur-panel');
+    } else {
+      this.instructions.classList.remove('instruction-blur-panel');
+    }
+    
     this.instructions.classList.add('visible');
     
     // Clear existing timeout
@@ -246,6 +253,7 @@ export class UIController {
    */
   hideInstructions() {
     this.instructions.classList.remove('visible');
+    this.instructions.classList.remove('instruction-blur-panel');
     this.currentInstructionState = null;
     
     if (this.instructionTimeout) {
@@ -397,16 +405,23 @@ export class UIController {
   /**
    * Create loading indicator for model with cancel button
    * @param {Function} onCancel - Callback when cancel button is clicked
+   * @param {string[]} renderingImages - Array of 4 image URLs for progress stages [0%, 25%, 50%, 75%].
+   *                                     Falls back to default rendering images if not provided.
    */
-  createModelLoadingIndicator(onCancel = null) {
+  createModelLoadingIndicator(onCancel = null, renderingImages = null) {
+    // Use per-model rendering images or fall back to defaults
+    const images = (Array.isArray(renderingImages) && renderingImages.length === 4)
+      ? renderingImages
+      : ['/rendering/rendering00.png', '/rendering/rendering25.png', '/rendering/rendering50.png', '/rendering/rendering75.png'];
+    
     const indicator = document.createElement('div');
     indicator.className = 'model-loading-indicator';
     indicator.dataset.currentStage = '0';
     indicator.innerHTML = `
-      <div class="loading-bg loading-bg-active" data-stage="0" style="background-image: url('/rendering/rendering00.png')"></div>
-      <div class="loading-bg" data-stage="25" style="background-image: url('/rendering/rendering25.png')"></div>
-      <div class="loading-bg" data-stage="50" style="background-image: url('/rendering/rendering50.png')"></div>
-      <div class="loading-bg" data-stage="75" style="background-image: url('/rendering/rendering75.png')"></div>
+      <div class="loading-bg loading-bg-active" data-stage="0" style="background-image: url('${images[0]}')"></div>
+      <div class="loading-bg" data-stage="25" style="background-image: url('${images[1]}')"></div>
+      <div class="loading-bg" data-stage="50" style="background-image: url('${images[2]}')"></div>
+      <div class="loading-bg" data-stage="75" style="background-image: url('${images[3]}')"></div>
       <button class="cancel-load-btn" type="button">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"></line>
